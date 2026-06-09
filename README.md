@@ -2,11 +2,23 @@
 
 A browser-based collection of classic games like Sudoku, Minesweeper, and more.
 
+## Games
+
+- Sudoku
+- Minesweeper
+- Solitaire
+- 2048
+- Chess
+- Snake
+- Word Search
+- Memory Match
+
 ## Tech Stack
 
 - Vite
 - React
 - TypeScript
+- chess.js
 
 ## Development
 

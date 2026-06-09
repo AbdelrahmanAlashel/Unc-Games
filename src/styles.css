@@ -429,6 +429,471 @@ h3 {
   color: var(--ink);
 }
 
+.play-panel {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding: clamp(14px, 2vw, 22px);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 12px 12px 0 rgba(23, 24, 23, 0.9);
+}
+
+.play-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.play-panel-header strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  line-height: 1;
+}
+
+.panel-label {
+  color: var(--felt);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.panel-actions,
+.number-pad,
+.d-pad,
+.word-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.control-button {
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--sun);
+  box-shadow: 3px 3px 0 var(--ink);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.control-button:hover,
+.control-button:focus-visible {
+  transform: translateY(-1px);
+}
+
+.control-button:focus-visible,
+.sudoku-cell:focus-visible,
+.mine-cell:focus-visible,
+.memory-card:focus-visible,
+.word-cell:focus-visible,
+.chess-square:focus-visible,
+.playing-card:focus-visible {
+  outline: 3px solid var(--sun);
+  outline-offset: 3px;
+}
+
+.control-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.sudoku-layout,
+.number-game-layout,
+.snake-layout,
+.word-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.sudoku-board {
+  display: grid;
+  width: min(100%, 520px);
+  aspect-ratio: 1;
+  grid-template-columns: repeat(9, 1fr);
+  border: 3px solid var(--ink);
+  background: var(--ink);
+}
+
+.sudoku-cell {
+  display: grid;
+  min-width: 0;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(23, 24, 23, 0.28);
+  background: var(--paper);
+  color: var(--felt-dark);
+  cursor: pointer;
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(1rem, 4vw, 2.1rem);
+  font-weight: 900;
+}
+
+.sudoku-cell:nth-child(3n) {
+  border-right-width: 3px;
+}
+
+.sudoku-cell:nth-child(n + 19):nth-child(-n + 27),
+.sudoku-cell:nth-child(n + 46):nth-child(-n + 54) {
+  border-bottom-width: 3px;
+}
+
+.sudoku-cell.locked {
+  background: #d9eadf;
+  color: var(--ink);
+}
+
+.sudoku-cell.selected {
+  background: var(--sun);
+}
+
+.sudoku-cell.wrong {
+  background: #f2b4ac;
+}
+
+.number-pad {
+  max-width: 520px;
+}
+
+.mine-board {
+  display: grid;
+  width: min(100%, 520px);
+  aspect-ratio: 1;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+  padding: 8px;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--felt-dark);
+}
+
+.mine-cell {
+  display: grid;
+  min-width: 0;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--table);
+  box-shadow: 2px 2px 0 var(--ink);
+  color: var(--felt-dark);
+  cursor: pointer;
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(0.95rem, 3vw, 1.7rem);
+  font-weight: 900;
+}
+
+.mine-cell.revealed {
+  background: var(--paper);
+  box-shadow: none;
+}
+
+.mine-cell.flagged {
+  background: var(--sun);
+  color: var(--ink);
+}
+
+.twenty-board,
+.memory-board,
+.word-board,
+.chess-board {
+  display: grid;
+  width: min(100%, 520px);
+  aspect-ratio: 1;
+}
+
+.twenty-board {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--felt-dark);
+}
+
+.twenty-cell {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: rgba(244, 247, 239, 0.5);
+  color: var(--ink);
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(1.4rem, 5vw, 3rem);
+  font-weight: 900;
+}
+
+.value-2,
+.value-4 {
+  background: var(--paper);
+}
+
+.value-8,
+.value-16,
+.value-32 {
+  background: var(--sun);
+}
+
+.value-64,
+.value-128,
+.value-256 {
+  background: var(--sky);
+}
+
+.value-512,
+.value-1024,
+.value-2048 {
+  background: var(--tomato);
+  color: white;
+}
+
+.d-pad {
+  display: grid;
+  max-width: 320px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.memory-board {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--felt-dark);
+}
+
+.memory-card {
+  display: grid;
+  min-width: 0;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, transparent 35%, rgba(255, 255, 255, 0.35) 35% 48%, transparent 48%),
+    var(--sky);
+  box-shadow: 4px 4px 0 rgba(23, 24, 23, 0.78);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(1.5rem, 5vw, 3rem);
+  font-weight: 900;
+}
+
+.memory-card.open {
+  background: var(--sun);
+  box-shadow: none;
+}
+
+.word-board {
+  grid-template-columns: repeat(10, 1fr);
+  gap: 5px;
+  padding: 10px;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--felt-dark);
+}
+
+.word-cell {
+  display: grid;
+  min-width: 0;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(0.75rem, 2.5vw, 1.45rem);
+  font-weight: 900;
+}
+
+.word-cell.selected {
+  background: var(--sun);
+}
+
+.word-cell.found {
+  background: var(--sky);
+  color: white;
+}
+
+.word-list span {
+  padding: 8px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.word-list span.found {
+  background: var(--sun);
+}
+
+.snake-board {
+  display: grid;
+  width: min(100%, 520px);
+  aspect-ratio: 1;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 2px;
+  padding: 8px;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(244, 247, 239, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(244, 247, 239, 0.08) 1px, transparent 1px),
+    var(--felt-dark);
+}
+
+.snake-board span {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 4px;
+}
+
+.snake-board .snake-body {
+  border: 1px solid var(--ink);
+  background: var(--sun);
+}
+
+.snake-board .snake-head {
+  background: var(--tomato);
+}
+
+.snake-board .snake-food {
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--sky);
+}
+
+.solitaire {
+  display: grid;
+  gap: 18px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.solitaire-top,
+.foundation-row {
+  display: flex;
+  gap: 10px;
+}
+
+.foundation-row {
+  margin-left: auto;
+}
+
+.playing-card,
+.empty-pile {
+  display: grid;
+  width: 70px;
+  aspect-ratio: 0.72;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: Rockwell, Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.playing-card.red {
+  color: var(--tomato);
+}
+
+.playing-card.card-back {
+  background:
+    linear-gradient(135deg, transparent 35%, rgba(255, 255, 255, 0.35) 35% 48%, transparent 48%),
+    var(--sky);
+  color: var(--ink);
+}
+
+.playing-card.selected {
+  background: var(--sun);
+  transform: translateY(-3px);
+}
+
+.playing-card:disabled {
+  cursor: default;
+}
+
+.foundation {
+  background: #d9eadf;
+}
+
+.tableau {
+  display: grid;
+  min-width: 560px;
+  grid-template-columns: repeat(7, 70px);
+  gap: 10px;
+}
+
+.tableau-pile {
+  position: relative;
+  min-height: 280px;
+  border-radius: 8px;
+}
+
+.tableau-pile .playing-card {
+  position: absolute;
+  left: 0;
+}
+
+.empty-pile {
+  border-style: dashed;
+  background: rgba(244, 247, 239, 0.45);
+  color: rgba(23, 24, 23, 0.45);
+}
+
+.chess-board {
+  grid-template-columns: repeat(8, 1fr);
+  border: 3px solid var(--ink);
+  background: var(--ink);
+}
+
+.chess-square {
+  display: grid;
+  min-width: 0;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(1.5rem, 5vw, 3.3rem);
+  font-weight: 900;
+}
+
+.chess-square.light {
+  background: var(--paper);
+}
+
+.chess-square.dark {
+  background: var(--sky);
+}
+
+.chess-square.selected {
+  background: var(--sun);
+}
+
+.chess-square.target {
+  box-shadow: inset 0 0 0 5px var(--tomato);
+}
+
 .preview {
   width: min(138px, 64%);
   aspect-ratio: 1;

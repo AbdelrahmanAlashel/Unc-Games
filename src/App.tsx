@@ -1,142 +1,10 @@
 import { useEffect, useState } from "react";
-
-type Category = "Puzzle" | "Cards" | "Board" | "Arcade" | "Word";
-type GameStatus = "Planned" | "Idea";
-type PreviewType = "sudoku" | "mines" | "cards" | "numbers" | "chess" | "snake" | "words" | "memory";
-
-type Game = {
-  name: string;
-  slug: string;
-  category: Category;
-  status: GameStatus;
-  mood: string;
-  preview: PreviewType;
-};
-
-const games: Game[] = [
-  { name: "Sudoku", slug: "sudoku", category: "Puzzle", status: "Planned", mood: "Quiet logic", preview: "sudoku" },
-  {
-    name: "Minesweeper",
-    slug: "minesweeper",
-    category: "Puzzle",
-    status: "Planned",
-    mood: "Careful clicks",
-    preview: "mines",
-  },
-  { name: "Solitaire", slug: "solitaire", category: "Cards", status: "Idea", mood: "Coffee-table cards", preview: "cards" },
-  { name: "2048", slug: "2048", category: "Puzzle", status: "Idea", mood: "Number stacking", preview: "numbers" },
-  { name: "Chess", slug: "chess", category: "Board", status: "Idea", mood: "Classic strategy", preview: "chess" },
-  { name: "Snake", slug: "snake", category: "Arcade", status: "Idea", mood: "Old phone reflexes", preview: "snake" },
-  {
-    name: "Word Search",
-    slug: "word-search",
-    category: "Word",
-    status: "Idea",
-    mood: "Circle the hidden word",
-    preview: "words",
-  },
-  {
-    name: "Memory Match",
-    slug: "memory-match",
-    category: "Puzzle",
-    status: "Idea",
-    mood: "Flip and remember",
-    preview: "memory",
-  },
-];
-
-const categories = ["All", "Puzzle", "Cards", "Board", "Arcade", "Word"] as const;
+import { GamePreview } from "./GamePreview";
+import { GameInstructions, PlayableGame } from "./PlayableGame";
+import { categories, games, type Game } from "./gameData";
 
 function getGameSlugFromHash() {
   return window.location.hash.replace(/^#\/?/, "");
-}
-
-function GamePreview({ type, size = "small" }: { type: PreviewType; size?: "small" | "large" }) {
-  const className = `preview preview-${size}`;
-
-  if (type === "sudoku") {
-    return (
-      <div className={`${className} preview-sudoku`} aria-hidden="true">
-        {["5", "", "9", "", "2", "", "7", "", "4"].map((value, index) => (
-          <span key={`${value}-${index}`}>{value}</span>
-        ))}
-      </div>
-    );
-  }
-
-  if (type === "mines") {
-    return (
-      <div className={`${className} preview-mines`} aria-hidden="true">
-        {["", "1", "", "2", "", "", "3", "", ""].map((value, index) => (
-          <span className={index === 4 ? "mine" : ""} key={`${value}-${index}`}>
-            {value}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  if (type === "cards") {
-    return (
-      <div className={`${className} preview-cards`} aria-hidden="true">
-        <span>A</span>
-        <span>7</span>
-        <span>K</span>
-      </div>
-    );
-  }
-
-  if (type === "numbers") {
-    return (
-      <div className={`${className} preview-numbers`} aria-hidden="true">
-        {[2, 4, 8, 16].map((value) => (
-          <span key={value}>{value}</span>
-        ))}
-      </div>
-    );
-  }
-
-  if (type === "chess") {
-    return (
-      <div className={`${className} preview-chess`} aria-hidden="true">
-        {Array.from({ length: 16 }, (_, index) => (
-          <span className={index === 1 || index === 10 ? "piece" : ""} key={index} />
-        ))}
-      </div>
-    );
-  }
-
-  if (type === "snake") {
-    return (
-      <div className={`${className} preview-snake`} aria-hidden="true">
-        <span />
-        <span />
-        <span />
-        <span />
-        <span className="snack" />
-      </div>
-    );
-  }
-
-  if (type === "words") {
-    return (
-      <div className={`${className} preview-words`} aria-hidden="true">
-        {["G", "A", "M", "E", "S", "U", "N", "C", "L"].map((letter, index) => (
-          <span className={index < 5 ? "found" : ""} key={`${letter}-${index}`}>
-            {letter}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className={`${className} preview-memory`} aria-hidden="true">
-      {Array.from({ length: 6 }, (_, index) => (
-        <span className={index === 1 || index === 4 ? "open" : ""} key={index} />
-      ))}
-    </div>
-  );
 }
 
 function GameRoom({ game, onBack }: { game: Game; onBack: () => void }) {
@@ -154,15 +22,12 @@ function GameRoom({ game, onBack }: { game: Game; onBack: () => void }) {
 
       <div className="game-room-stage">
         <div className="game-room-copy">
-          <p className="eyebrow">Now seating</p>
+          <p className="eyebrow">Now playing</p>
           <h1 id="game-room-title">{game.name}</h1>
-          <p>{game.mood}</p>
+          <GameInstructions game={game} />
         </div>
 
-        <div className="play-table" aria-label={`${game.name} play area`}>
-          <GamePreview type={game.preview} size="large" />
-          <span className="table-badge">Coming soon</span>
-        </div>
+        <PlayableGame slug={game.slug} />
       </div>
     </section>
   );
@@ -174,7 +39,6 @@ export default function App() {
   const selectedGame = games.find((game) => game.slug === activeGameSlug);
   const visibleGames =
     activeCategory === "All" ? games : games.filter((game) => game.category === activeCategory);
-  const plannedCount = games.filter((game) => game.status === "Planned").length;
 
   useEffect(() => {
     const updateActiveGame = () => setActiveGameSlug(getGameSlugFromHash());
@@ -200,7 +64,7 @@ export default function App() {
           <span className="brand-mark">UG</span>
           <span>Unc Games</span>
         </button>
-        <span className="version-pill">v0.2 tables</span>
+        <span className="version-pill">v1.0 playable</span>
       </header>
 
       {selectedGame ? (
@@ -216,11 +80,11 @@ export default function App() {
             <dl className="lobby-stats" aria-label="Project stats">
               <div>
                 <dt>{games.length}</dt>
-                <dd>Games on the shelf</dd>
+                <dd>Playable games</dd>
               </div>
               <div>
-                <dt>{plannedCount}</dt>
-                <dd>Ready to build first</dd>
+                <dt>8</dt>
+                <dd>Tables open today</dd>
               </div>
               <div>
                 <dt>1</dt>
@@ -260,7 +124,7 @@ export default function App() {
                     </div>
                     <h3>{game.name}</h3>
                     <p>{game.mood}</p>
-                    <span className="game-card-action">Open table</span>
+                    <span className="game-card-action">Play</span>
                   </div>
                 </button>
               ))}
