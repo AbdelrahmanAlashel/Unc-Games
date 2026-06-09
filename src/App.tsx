@@ -9,7 +9,7 @@ function getGameSlugFromHash() {
 
 function GameRoom({ game, onBack }: { game: Game; onBack: () => void }) {
   return (
-    <section className="game-room" aria-labelledby="game-room-title">
+    <section className={`game-room game-room-${game.slug}`} aria-labelledby="game-room-title">
       <div className="game-room-top">
         <button className="back-button" onClick={onBack} type="button">
           Back

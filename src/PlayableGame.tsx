@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Chess, type Square } from "chess.js";
 import type { Game, GameSlug } from "./gameData";
 
@@ -7,14 +7,18 @@ function GamePanel({
   status,
   children,
   actions,
+  className = "",
+  meta,
 }: {
   title: string;
   status: string;
   children: ReactNode;
   actions?: ReactNode;
+  className?: string;
+  meta?: ReactNode;
 }) {
   return (
-    <div className="play-panel">
+    <div className={`play-panel ${className}`}>
       <div className="play-panel-header">
         <div>
           <p className="panel-label">{title}</p>
@@ -22,6 +26,7 @@ function GamePanel({
         </div>
         {actions ? <div className="panel-actions">{actions}</div> : null}
       </div>
+      {meta ? <div className="timer-strip">{meta}</div> : null}
       {children}
     </div>
   );
@@ -43,39 +48,205 @@ function ControlButton({
   );
 }
 
-const sudokuPuzzle = [
-  5, 3, 0, 0, 7, 0, 0, 0, 0,
-  6, 0, 0, 1, 9, 5, 0, 0, 0,
-  0, 9, 8, 0, 0, 0, 0, 6, 0,
-  8, 0, 0, 0, 6, 0, 0, 0, 3,
-  4, 0, 0, 8, 0, 3, 0, 0, 1,
-  7, 0, 0, 0, 2, 0, 0, 0, 6,
-  0, 6, 0, 0, 0, 0, 2, 8, 0,
-  0, 0, 0, 4, 1, 9, 0, 0, 5,
-  0, 0, 0, 0, 8, 0, 0, 7, 9,
-];
+type Difficulty = "Easy" | "Medium" | "Hard";
+type TimerStatsRecord = {
+  best: number | null;
+  count: number;
+  total: number;
+};
 
-const sudokuSolution = [
-  5, 3, 4, 6, 7, 8, 9, 1, 2,
-  6, 7, 2, 1, 9, 5, 3, 4, 8,
-  1, 9, 8, 3, 4, 2, 5, 6, 7,
-  8, 5, 9, 7, 6, 1, 4, 2, 3,
-  4, 2, 6, 8, 5, 3, 7, 9, 1,
-  7, 1, 3, 9, 2, 4, 8, 5, 6,
-  9, 6, 1, 5, 3, 7, 2, 8, 4,
-  2, 8, 7, 4, 1, 9, 6, 3, 5,
-  3, 4, 5, 2, 8, 6, 1, 7, 9,
-];
+const timeStatsStorageKey = "unc-games-time-stats-v1";
+const standardDifficulty = "Standard";
+const difficultyOptions: Difficulty[] = ["Easy", "Medium", "Hard"];
+
+function formatTime(seconds: number | null) {
+  if (seconds === null) {
+    return "--:--";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function emptyTimerStats(): TimerStatsRecord {
+  return { best: null, count: 0, total: 0 };
+}
+
+function getTimerStatsKey(game: GameSlug, difficulty: string) {
+  return `${game}:${difficulty}`;
+}
+
+function readTimerStats() {
+  try {
+    return JSON.parse(localStorage.getItem(timeStatsStorageKey) || "{}") as Record<string, TimerStatsRecord>;
+  } catch {
+    return {};
+  }
+}
+
+function saveTimerResult(game: GameSlug, difficulty: string, seconds: number) {
+  const allStats = readTimerStats();
+  const key = getTimerStatsKey(game, difficulty);
+  const current = allStats[key] ?? emptyTimerStats();
+  const next = {
+    best: current.best === null ? seconds : Math.min(current.best, seconds),
+    count: current.count + 1,
+    total: current.total + seconds,
+  };
+
+  localStorage.setItem(timeStatsStorageKey, JSON.stringify({ ...allStats, [key]: next }));
+  return next;
+}
+
+function useGameTimerStats(game: GameSlug, difficulty: string, completed: boolean, resetKey: number) {
+  const [seconds, setSeconds] = useState(0);
+  const [stats, setStats] = useState<TimerStatsRecord>(() => readTimerStats()[getTimerStatsKey(game, difficulty)] ?? emptyTimerStats());
+  const recordedRef = useRef(false);
+
+  useEffect(() => {
+    setSeconds(0);
+    setStats(readTimerStats()[getTimerStatsKey(game, difficulty)] ?? emptyTimerStats());
+    recordedRef.current = false;
+  }, [difficulty, game, resetKey]);
+
+  useEffect(() => {
+    if (completed) {
+      return;
+    }
+
+    const timer = window.setInterval(() => setSeconds((current) => current + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [completed, difficulty, game, resetKey]);
+
+  useEffect(() => {
+    if (!completed || recordedRef.current) {
+      return;
+    }
+
+    recordedRef.current = true;
+    setStats(saveTimerResult(game, difficulty, Math.max(1, seconds)));
+  }, [completed, difficulty, game, seconds]);
+
+  return {
+    average: stats.count ? Math.round(stats.total / stats.count) : null,
+    best: stats.best,
+    difficulty,
+    plays: stats.count,
+    seconds,
+  };
+}
+
+function TimerStats({ stats }: { stats: ReturnType<typeof useGameTimerStats> }) {
+  return (
+    <>
+      <span>Time {formatTime(stats.seconds)}</span>
+      <span>{stats.difficulty}</span>
+      <span>Best {formatTime(stats.best)}</span>
+      <span>Average {formatTime(stats.average)}</span>
+      <span>Games {stats.plays}</span>
+    </>
+  );
+}
+
+function DifficultyTabs({
+  active,
+  onChange,
+}: {
+  active: Difficulty;
+  onChange: (difficulty: Difficulty) => void;
+}) {
+  return (
+    <div className="difficulty-tabs" role="group" aria-label="Choose difficulty">
+      {difficultyOptions.map((difficulty) => (
+        <button
+          aria-pressed={active === difficulty}
+          className="difficulty-tab"
+          key={difficulty}
+          onClick={() => onChange(difficulty)}
+          type="button"
+        >
+          {difficulty}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const sudokuCluesByDifficulty: Record<Difficulty, number> = {
+  Easy: 42,
+  Medium: 34,
+  Hard: 27,
+};
+
+function range(length: number) {
+  return Array.from({ length }, (_, index) => index);
+}
+
+function shuffle<T>(items: T[]) {
+  const next = [...items];
+
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+
+  return next;
+}
+
+function generateSudokuPuzzle(difficulty: Difficulty) {
+  const rowOrder = shuffle(range(3)).flatMap((band) => shuffle(range(3)).map((row) => band * 3 + row));
+  const colOrder = shuffle(range(3)).flatMap((stack) => shuffle(range(3)).map((col) => stack * 3 + col));
+  const numbers = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  const solution = rowOrder.flatMap((row) =>
+    colOrder.map((col) => numbers[(row * 3 + Math.floor(row / 3) + col) % 9]),
+  );
+  const puzzle = [...solution];
+  const hiddenCells = shuffle(range(81)).slice(0, 81 - sudokuCluesByDifficulty[difficulty]);
+
+  hiddenCells.forEach((index) => {
+    puzzle[index] = 0;
+  });
+
+  return { puzzle, solution };
+}
 
 function SudokuGame() {
-  const [values, setValues] = useState(sudokuPuzzle);
+  const [difficulty, setDifficulty] = useState<Difficulty>("Easy");
+  const [round, setRound] = useState(0);
+  const [game, setGame] = useState(() => generateSudokuPuzzle("Easy"));
+  const [values, setValues] = useState(game.puzzle);
   const [selected, setSelected] = useState<number | null>(null);
-  const errors = values.filter((value, index) => value !== 0 && value !== sudokuSolution[index]).length;
-  const complete = values.every((value, index) => value === sudokuSolution[index]);
+  const errors = values.filter((value, index) => value !== 0 && value !== game.solution[index]).length;
+  const complete = values.every((value, index) => value === game.solution[index]);
   const filled = values.filter(Boolean).length;
+  const selectedValue = selected === null ? 0 : values[selected];
+  const correctCounts = [1, 2, 3, 4, 5, 6, 7, 8, 9].reduce<Record<number, number>>((counts, value) => {
+    counts[value] = values.filter((cell, index) => cell === value && cell === game.solution[index]).length;
+    return counts;
+  }, {});
+  const timerStats = useGameTimerStats("sudoku", difficulty, complete, round);
+
+  function startNewPuzzle(nextDifficulty = difficulty) {
+    const nextGame = generateSudokuPuzzle(nextDifficulty);
+    setDifficulty(nextDifficulty);
+    setGame(nextGame);
+    setValues(nextGame.puzzle);
+    setSelected(null);
+    setRound((current) => current + 1);
+  }
+
+  useEffect(() => {
+    if (!complete) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => startNewPuzzle(), 1400);
+    return () => window.clearTimeout(timer);
+  }, [complete]);
 
   function setCellValue(value: number) {
-    if (selected === null || sudokuPuzzle[selected] !== 0) {
+    if (selected === null || game.puzzle[selected] !== 0) {
       return;
     }
 
@@ -85,19 +256,25 @@ function SudokuGame() {
   return (
     <GamePanel
       title="Sudoku"
-      status={complete ? "Solved" : `${filled}/81 filled, ${errors} mistakes`}
-      actions={<ControlButton onClick={() => setValues(sudokuPuzzle)}>Reset</ControlButton>}
+      status={complete ? "Solved, loading next puzzle" : `${filled}/81 filled, ${errors} mistakes`}
+      actions={<ControlButton onClick={() => startNewPuzzle()}>New puzzle</ControlButton>}
+      meta={<TimerStats stats={timerStats} />}
     >
       <div className="sudoku-layout">
+        <DifficultyTabs active={difficulty} onChange={startNewPuzzle} />
         <div className="sudoku-board">
           {values.map((value, index) => {
-            const locked = sudokuPuzzle[index] !== 0;
-            const wrong = value !== 0 && value !== sudokuSolution[index];
+            const locked = game.puzzle[index] !== 0;
+            const wrong = value !== 0 && value !== game.solution[index];
+            const sameNumber = selectedValue !== 0 && value === selectedValue;
+            const dimmed = selectedValue !== 0 && value !== 0 && value !== selectedValue;
 
             return (
               <button
                 aria-label={`Sudoku cell ${Math.floor(index / 9) + 1}, ${(index % 9) + 1}`}
-                className={`sudoku-cell ${locked ? "locked" : ""} ${wrong ? "wrong" : ""} ${selected === index ? "selected" : ""}`}
+                className={`sudoku-cell ${locked ? "locked" : ""} ${wrong ? "wrong" : ""} ${selected === index ? "selected" : ""} ${
+                  sameNumber ? "same-number" : ""
+                } ${dimmed ? "dimmed-number" : ""}`}
                 key={index}
                 onClick={() => setSelected(index)}
                 type="button"
@@ -109,9 +286,11 @@ function SudokuGame() {
         </div>
         <div className="number-pad" aria-label="Sudoku number pad">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((value) => (
-            <ControlButton key={value} onClick={() => setCellValue(value)}>
-              {value}
-            </ControlButton>
+            correctCounts[value] < 9 ? (
+              <ControlButton key={value} onClick={() => setCellValue(value)}>
+                {value}
+              </ControlButton>
+            ) : null
           ))}
           <ControlButton onClick={() => setCellValue(0)}>Clear</ControlButton>
         </div>
@@ -127,14 +306,22 @@ type MineCell = {
   flagged: boolean;
 };
 
-const mineSize = 9;
-const mineCount = 10;
+type MineConfig = {
+  mines: number;
+  size: number;
+};
 
-function createEmptyMineBoard(): MineCell[] {
-  return Array.from({ length: mineSize * mineSize }, () => ({ mine: false, adjacent: 0, revealed: false, flagged: false }));
+const mineConfigs: Record<Difficulty, MineConfig> = {
+  Easy: { size: 9, mines: 10 },
+  Medium: { size: 12, mines: 24 },
+  Hard: { size: 16, mines: 45 },
+};
+
+function createEmptyMineBoard(size: number): MineCell[] {
+  return Array.from({ length: size * size }, () => ({ mine: false, adjacent: 0, revealed: false, flagged: false }));
 }
 
-function neighbors(index: number, size = mineSize) {
+function neighbors(index: number, size: number) {
   const row = Math.floor(index / size);
   const col = index % size;
   const cells: number[] = [];
@@ -157,12 +344,12 @@ function neighbors(index: number, size = mineSize) {
   return cells;
 }
 
-function createMineBoard(safeIndex: number): MineCell[] {
-  const board = createEmptyMineBoard();
-  const blocked = new Set([safeIndex, ...neighbors(safeIndex)]);
+function createMineBoard(safeIndex: number, config: MineConfig): MineCell[] {
+  const board = createEmptyMineBoard(config.size);
+  const blocked = new Set([safeIndex, ...neighbors(safeIndex, config.size)]);
   let placed = 0;
 
-  while (placed < mineCount) {
+  while (placed < config.mines) {
     const index = Math.floor(Math.random() * board.length);
 
     if (!board[index].mine && !blocked.has(index)) {
@@ -173,11 +360,11 @@ function createMineBoard(safeIndex: number): MineCell[] {
 
   return board.map((cell, index) => ({
     ...cell,
-    adjacent: cell.mine ? 0 : neighbors(index).filter((neighbor) => board[neighbor].mine).length,
+    adjacent: cell.mine ? 0 : neighbors(index, config.size).filter((neighbor) => board[neighbor].mine).length,
   }));
 }
 
-function revealMineCells(board: MineCell[], start: number) {
+function revealMineCells(board: MineCell[], start: number, size: number) {
   const next = board.map((cell) => ({ ...cell }));
   const queue = [start];
   const visited = new Set<number>();
@@ -193,7 +380,7 @@ function revealMineCells(board: MineCell[], start: number) {
     next[index].revealed = true;
 
     if (!next[index].mine && next[index].adjacent === 0) {
-      neighbors(index).forEach((neighbor) => {
+      neighbors(index, size).forEach((neighbor) => {
         if (!next[neighbor].revealed) {
           queue.push(neighbor);
         }
@@ -205,16 +392,23 @@ function revealMineCells(board: MineCell[], start: number) {
 }
 
 function MinesweeperGame() {
-  const [board, setBoard] = useState(createEmptyMineBoard);
+  const [difficulty, setDifficulty] = useState<Difficulty>("Easy");
+  const [round, setRound] = useState(0);
+  const config = mineConfigs[difficulty];
+  const [board, setBoard] = useState(() => createEmptyMineBoard(config.size));
   const [started, setStarted] = useState(false);
   const [state, setState] = useState<"playing" | "won" | "lost">("playing");
   const flags = board.filter((cell) => cell.flagged).length;
   const revealed = board.filter((cell) => cell.revealed).length;
+  const timerStats = useGameTimerStats("minesweeper", difficulty, state === "won", round);
 
-  function reset() {
-    setBoard(createEmptyMineBoard());
+  function reset(nextDifficulty = difficulty) {
+    const nextConfig = mineConfigs[nextDifficulty];
+    setDifficulty(nextDifficulty);
+    setBoard(createEmptyMineBoard(nextConfig.size));
     setStarted(false);
     setState("playing");
+    setRound((current) => current + 1);
   }
 
   function reveal(index: number) {
@@ -222,7 +416,7 @@ function MinesweeperGame() {
       return;
     }
 
-    const activeBoard = started ? board : createMineBoard(index);
+    const activeBoard = started ? board : createMineBoard(index, config);
     setStarted(true);
 
     if (activeBoard[index].mine) {
@@ -231,7 +425,7 @@ function MinesweeperGame() {
       return;
     }
 
-    const next = revealMineCells(activeBoard, index);
+    const next = revealMineCells(activeBoard, index, config.size);
     const won = next.every((cell) => cell.mine || cell.revealed);
     setBoard(next);
     setState(won ? "won" : "playing");
@@ -248,14 +442,20 @@ function MinesweeperGame() {
   return (
     <GamePanel
       title="Minesweeper"
-      status={state === "won" ? "Cleared" : state === "lost" ? "Mine hit" : `${mineCount - flags} flags left, ${revealed} open`}
-      actions={<ControlButton onClick={reset}>New board</ControlButton>}
+      status={state === "won" ? "Cleared" : state === "lost" ? "Mine hit" : `${config.mines - flags} flags left, ${revealed} open`}
+      actions={<ControlButton onClick={() => reset()}>New board</ControlButton>}
+      meta={<TimerStats stats={timerStats} />}
     >
-      <div className="mine-board">
+      <div className="mine-layout">
+        <DifficultyTabs active={difficulty} onChange={reset} />
+      </div>
+      <div className="mine-board" style={{ "--mine-size": config.size } as CSSProperties}>
         {board.map((cell, index) => (
           <button
             aria-label={`Mine cell ${index + 1}`}
-            className={`mine-cell ${cell.revealed ? "revealed" : ""} ${cell.flagged ? "flagged" : ""}`}
+            className={`mine-cell ${cell.revealed ? "revealed" : ""} ${cell.flagged ? "flagged" : ""} ${
+              cell.revealed && cell.mine ? "mined" : ""
+            } ${cell.revealed && !cell.mine && cell.adjacent === 0 ? "empty" : ""} mine-count-${cell.adjacent}`}
             key={index}
             onClick={() => reveal(index)}
             onContextMenu={(event) => {
@@ -357,15 +557,20 @@ function TwentyFortyEightGame() {
   const [board, setBoard] = useState(start2048Board);
   const [score, setScore] = useState(0);
   const [lost, setLost] = useState(false);
+  const [won, setWon] = useState(false);
+  const [round, setRound] = useState(0);
+  const timerStats = useGameTimerStats("2048", standardDifficulty, won, round);
 
   function reset() {
     setBoard(start2048Board());
     setScore(0);
     setLost(false);
+    setWon(false);
+    setRound((current) => current + 1);
   }
 
   function move(direction: Direction) {
-    if (lost) {
+    if (lost || won) {
       return;
     }
 
@@ -378,6 +583,7 @@ function TwentyFortyEightGame() {
 
       const withTile = addRandomTile(result.board);
       setScore((currentScore) => currentScore + result.gained);
+      setWon(withTile.flat().some((value) => value >= 2048));
       setLost(!canMove2048(withTile));
       return withTile;
     });
@@ -404,7 +610,12 @@ function TwentyFortyEightGame() {
   });
 
   return (
-    <GamePanel title="2048" status={lost ? `No moves, score ${score}` : `Score ${score}`} actions={<ControlButton onClick={reset}>New game</ControlButton>}>
+    <GamePanel
+      title="2048"
+      status={won ? `2048 reached, score ${score}` : lost ? `No moves, score ${score}` : `Score ${score}`}
+      actions={<ControlButton onClick={reset}>New game</ControlButton>}
+      meta={<TimerStats stats={timerStats} />}
+    >
       <div className="number-game-layout">
         <div className="twenty-board">
           {board.flatMap((row, rowIndex) =>
@@ -445,12 +656,15 @@ function MemoryMatchGame() {
   const [cards, setCards] = useState(createMemoryDeck);
   const [flipped, setFlipped] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
+  const [round, setRound] = useState(0);
   const won = cards.every((card) => card.matched);
+  const timerStats = useGameTimerStats("memory-match", standardDifficulty, won, round);
 
   function reset() {
     setCards(createMemoryDeck());
     setFlipped([]);
     setMoves(0);
+    setRound((current) => current + 1);
   }
 
   function flip(index: number) {
@@ -480,7 +694,12 @@ function MemoryMatchGame() {
   }, [cards, flipped]);
 
   return (
-    <GamePanel title="Memory Match" status={won ? `Cleared in ${moves} moves` : `${moves} moves`} actions={<ControlButton onClick={reset}>Shuffle</ControlButton>}>
+    <GamePanel
+      title="Memory Match"
+      status={won ? `Cleared in ${moves} moves` : `${moves} moves`}
+      actions={<ControlButton onClick={reset}>Shuffle</ControlButton>}
+      meta={<TimerStats stats={timerStats} />}
+    >
       <div className="memory-board">
         {cards.map((card, index) => {
           const open = card.matched || flipped.includes(index);
@@ -528,11 +747,24 @@ function pathKey(path: WordCell[]) {
 function WordSearchGame() {
   const [selected, setSelected] = useState<WordCell[]>([]);
   const [found, setFound] = useState<string[]>([]);
+  const [round, setRound] = useState(0);
   const maxWordLength = Math.max(...wordTargets.map((target) => target.path.length));
   const foundCellKeys = new Set(wordTargets.filter((target) => found.includes(target.word)).flatMap((target) => target.path.map((cell) => `${cell.row}-${cell.col}`)));
   const selectedKey = pathKey(selected);
+  const complete = found.length === wordTargets.length;
+  const timerStats = useGameTimerStats("word-search", standardDifficulty, complete, round);
+
+  function reset() {
+    setSelected([]);
+    setFound([]);
+    setRound((current) => current + 1);
+  }
 
   function chooseCell(cell: WordCell) {
+    if (complete) {
+      return;
+    }
+
     const nextSelection = selected.length >= maxWordLength ? [cell] : [...selected, cell];
     const nextKey = pathKey(nextSelection);
     const match = wordTargets.find((target) => {
@@ -553,8 +785,14 @@ function WordSearchGame() {
   return (
     <GamePanel
       title="Word Search"
-      status={`${found.length}/${wordTargets.length} found`}
-      actions={<ControlButton onClick={() => setSelected([])}>Clear picks</ControlButton>}
+      status={complete ? "All words found" : `${found.length}/${wordTargets.length} found`}
+      actions={
+        <>
+          <ControlButton onClick={() => setSelected([])}>Clear picks</ControlButton>
+          <ControlButton onClick={reset}>Reset</ControlButton>
+        </>
+      }
+      meta={<TimerStats stats={timerStats} />}
     >
       <div className="word-layout">
         <div className="word-board">
@@ -591,6 +829,7 @@ function WordSearchGame() {
 
 type Point = { x: number; y: number };
 const snakeSize = 16;
+const snakeGoal = 10;
 const initialSnake = [
   { x: 8, y: 8 },
   { x: 7, y: 8 },
@@ -618,6 +857,9 @@ function SnakeGame() {
   const [running, setRunning] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
+  const [round, setRound] = useState(0);
+  const won = score >= snakeGoal;
+  const timerStats = useGameTimerStats("snake", standardDifficulty, won, round);
   const directionRef = useRef(direction);
 
   function reset() {
@@ -628,9 +870,14 @@ function SnakeGame() {
     setRunning(false);
     setGameOver(false);
     setScore(0);
+    setRound((current) => current + 1);
   }
 
   function changeDirection(next: Direction) {
+    if (gameOver || won) {
+      return;
+    }
+
     const opposite: Record<Direction, Direction> = { up: "down", right: "left", down: "up", left: "right" };
 
     if (opposite[directionRef.current] === next) {
@@ -663,7 +910,7 @@ function SnakeGame() {
   });
 
   useEffect(() => {
-    if (!running || gameOver) {
+    if (!running || gameOver || won) {
       return;
     }
 
@@ -677,13 +924,12 @@ function SnakeGame() {
           left: { x: -1, y: 0 },
         };
         const nextHead = {
-          x: head.x + vector[directionRef.current].x,
-          y: head.y + vector[directionRef.current].y,
+          x: (head.x + vector[directionRef.current].x + snakeSize) % snakeSize,
+          y: (head.y + vector[directionRef.current].y + snakeSize) % snakeSize,
         };
-        const hitWall = nextHead.x < 0 || nextHead.x >= snakeSize || nextHead.y < 0 || nextHead.y >= snakeSize;
         const hitSelf = current.some((segment) => samePoint(segment, nextHead));
 
-        if (hitWall || hitSelf) {
+        if (hitSelf) {
           setGameOver(true);
           setRunning(false);
           return current;
@@ -693,7 +939,15 @@ function SnakeGame() {
         const nextSnake = ate ? [nextHead, ...current] : [nextHead, ...current.slice(0, -1)];
 
         if (ate) {
-          setScore((currentScore) => currentScore + 1);
+          setScore((currentScore) => {
+            const nextScore = currentScore + 1;
+
+            if (nextScore >= snakeGoal) {
+              setRunning(false);
+            }
+
+            return nextScore;
+          });
           setFood(randomFood(nextSnake));
         }
 
@@ -702,13 +956,22 @@ function SnakeGame() {
     }, 140);
 
     return () => window.clearInterval(timer);
-  }, [food, gameOver, running]);
+  }, [food, gameOver, running, won]);
 
   return (
     <GamePanel
       title="Snake"
-      status={gameOver ? `Game over, score ${score}` : running ? `Moving ${direction}, score ${score}` : `Ready, score ${score}`}
+      status={
+        won
+          ? `Goal reached, score ${score}`
+          : gameOver
+            ? `Game over, score ${score}`
+            : running
+              ? `Moving ${direction}, score ${score}/${snakeGoal}`
+              : `Ready, score ${score}/${snakeGoal}`
+      }
       actions={<ControlButton onClick={reset}>Reset</ControlButton>}
+      meta={<TimerStats stats={timerStats} />}
     >
       <div className="snake-layout">
         <div className="snake-board">
@@ -752,12 +1015,24 @@ type SolitaireSelection =
   | { source: "tableau"; pile: number; index: number };
 
 const suits: Suit[] = ["spades", "hearts", "diamonds", "clubs"];
-const suitSymbols: Record<Suit, string> = { spades: "S", hearts: "H", diamonds: "D", clubs: "C" };
+const suitSymbols: Record<Suit, string> = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣" };
 const redSuits = new Set<Suit>(["hearts", "diamonds"]);
 
-function cardLabel(card: Card) {
-  const rank = card.rank === 1 ? "A" : card.rank === 11 ? "J" : card.rank === 12 ? "Q" : card.rank === 13 ? "K" : String(card.rank);
-  return `${rank}${suitSymbols[card.suit]}`;
+function cardRankLabel(card: Card) {
+  return card.rank === 1 ? "A" : card.rank === 11 ? "J" : card.rank === 12 ? "Q" : card.rank === 13 ? "K" : String(card.rank);
+}
+
+function CardFace({ card }: { card: Card }) {
+  const rank = cardRankLabel(card);
+  const suit = suitSymbols[card.suit];
+
+  return (
+    <>
+      <span className="card-corner card-top">{rank}</span>
+      <span className="card-suit">{suit}</span>
+      <span className="card-corner card-bottom">{rank}</span>
+    </>
+  );
 }
 
 function createSolitaireState(): SolitaireState {
@@ -845,10 +1120,13 @@ function canPlaceOnFoundation(card: Card, foundation: Card[], suit: Suit) {
 
 function SolitaireGame() {
   const [state, setState] = useState(createSolitaireState);
+  const [round, setRound] = useState(0);
   const won = suits.every((suit) => state.foundations[suit].length === 13);
+  const timerStats = useGameTimerStats("solitaire", standardDifficulty, won, round);
 
   function reset() {
     setState(createSolitaireState());
+    setRound((current) => current + 1);
   }
 
   function draw() {
@@ -920,25 +1198,57 @@ function SolitaireGame() {
     });
   }
 
+  function moveSelectionToAnyFoundation(selection: SolitaireSelection) {
+    setState((current) => {
+      const next: SolitaireState = structuredClone(current);
+      const cards = selectedCards(next, selection);
+      const targetSuit = cards.length === 1 ? suits.find((suit) => canPlaceOnFoundation(cards[0], next.foundations[suit], suit)) : undefined;
+
+      if (!targetSuit) {
+        return current;
+      }
+
+      removeSelection(next, selection);
+      next.foundations[targetSuit].push({ ...cards[0], faceUp: true });
+      next.selected = null;
+      return next;
+    });
+  }
+
   return (
-    <GamePanel title="Solitaire" status={won ? "All foundations complete" : `${state.stock.length} stock, ${state.waste.length} waste`} actions={<ControlButton onClick={reset}>New deal</ControlButton>}>
+    <GamePanel
+      className="solitaire-panel"
+      title="Solitaire"
+      status={won ? "All foundations complete" : `${state.stock.length} stock, ${state.waste.length} waste`}
+      actions={<ControlButton onClick={reset}>New deal</ControlButton>}
+      meta={<TimerStats stats={timerStats} />}
+    >
       <div className="solitaire">
         <div className="solitaire-top">
           <button className="playing-card card-back" onClick={draw} type="button">
             {state.stock.length ? state.stock.length : "Deal"}
           </button>
-          <button className={`playing-card ${state.selected?.source === "waste" ? "selected" : ""}`} onClick={() => select({ source: "waste" })} type="button">
-            {state.waste.at(-1) ? cardLabel(state.waste.at(-1)!) : ""}
+          <button
+            className={`playing-card ${redSuits.has(state.waste.at(-1)?.suit ?? "spades") ? "red" : ""} ${
+              state.selected?.source === "waste" ? "selected" : ""
+            }`}
+            onClick={() => (state.waste.at(-1) ? select({ source: "waste" }) : select(null))}
+            onDoubleClick={() => (state.waste.at(-1) ? moveSelectionToAnyFoundation({ source: "waste" }) : undefined)}
+            type="button"
+          >
+            {state.waste.at(-1) ? <CardFace card={state.waste.at(-1)!} /> : ""}
           </button>
           <div className="foundation-row">
             {suits.map((suit) => (
               <button
-                className={`playing-card foundation ${state.selected?.source === "foundation" && state.selected.suit === suit ? "selected" : ""}`}
+                className={`playing-card foundation ${redSuits.has(suit) ? "red" : ""} ${
+                  state.selected?.source === "foundation" && state.selected.suit === suit ? "selected" : ""
+                }`}
                 key={suit}
-                onClick={() => (state.selected ? moveToFoundation(suit) : select({ source: "foundation", suit }))}
+                onClick={() => (state.selected ? moveToFoundation(suit) : state.foundations[suit].at(-1) ? select({ source: "foundation", suit }) : select(null))}
                 type="button"
               >
-                {state.foundations[suit].at(-1) ? cardLabel(state.foundations[suit].at(-1)!) : suitSymbols[suit]}
+                {state.foundations[suit].at(-1) ? <CardFace card={state.foundations[suit].at(-1)!} /> : suitSymbols[suit]}
               </button>
             ))}
           </div>
@@ -962,10 +1272,14 @@ function SolitaireGame() {
                       select({ source: "tableau", pile: pileIndex, index: cardIndex });
                     }
                   }}
-                  style={{ top: `${cardIndex * 28}px` }}
+                  onDoubleClick={(event) => {
+                    event.stopPropagation();
+                    moveSelectionToAnyFoundation({ source: "tableau", pile: pileIndex, index: cardIndex });
+                  }}
+                  style={{ top: `${cardIndex * 38}px` }}
                   type="button"
                 >
-                  {card.faceUp ? cardLabel(card) : ""}
+                  {card.faceUp ? <CardFace card={card} /> : ""}
                 </button>
               ))}
             </div>
@@ -994,7 +1308,10 @@ const pieceSymbols: Record<string, string> = {
 function ChessGame() {
   const [fen, setFen] = useState(new Chess().fen());
   const [selected, setSelected] = useState<Square | null>(null);
+  const [round, setRound] = useState(0);
   const game = useMemo(() => new Chess(fen), [fen]);
+  const complete = game.isCheckmate() || game.isDraw();
+  const timerStats = useGameTimerStats("chess", standardDifficulty, complete, round);
   const legalTargets = selected ? game.moves({ square: selected, verbose: true }).map((move) => move.to) : [];
   const status = game.isCheckmate()
     ? `Checkmate, ${game.turn() === "w" ? "black" : "white"} wins`
@@ -1007,6 +1324,7 @@ function ChessGame() {
   function reset() {
     setFen(new Chess().fen());
     setSelected(null);
+    setRound((current) => current + 1);
   }
 
   function clickSquare(square: Square) {
@@ -1031,7 +1349,7 @@ function ChessGame() {
   }
 
   return (
-    <GamePanel title="Chess" status={status} actions={<ControlButton onClick={reset}>Reset board</ControlButton>}>
+    <GamePanel title="Chess" status={status} actions={<ControlButton onClick={reset}>Reset board</ControlButton>} meta={<TimerStats stats={timerStats} />}>
       <div className="chess-board">
         {game.board().flatMap((row, rowIndex) =>
           row.map((piece, colIndex) => {
@@ -1074,12 +1392,12 @@ export function PlayableGame({ slug }: { slug: GameSlug }) {
 
 export function GameInstructions({ game }: { game: Game }) {
   const instructions: Record<GameSlug, string> = {
-    sudoku: "Pick an empty cell, then use the number pad. Wrong guesses are marked.",
-    minesweeper: "Click to reveal, right-click to flag. Your first click is protected.",
-    solitaire: "Draw from stock, select cards, then place them on valid tableau piles or foundations.",
+    sudoku: "Pick an empty cell, then use the number pad. Matching numbers highlight, and solved puzzles roll into a fresh one.",
+    minesweeper: "Choose a difficulty, click to reveal, right-click to flag. Your first click is protected.",
+    solitaire: "Draw from stock, move cards onto tableau piles, or double-click a card to send it to a foundation when it fits.",
     "2048": "Use arrow keys or the buttons. Merge matching tiles to grow the score.",
     chess: "Select one of the current side's pieces, then choose a legal destination.",
-    snake: "Use arrow keys or the buttons. Eat food, avoid walls, and avoid your own body.",
+    snake: "Use arrow keys or the buttons. Walls wrap around; eat 10 food before running into yourself.",
     "word-search": "Click letters in order to find each word. Clear picks if the path is wrong.",
     "memory-match": "Flip two cards at a time and match all pairs.",
   };
