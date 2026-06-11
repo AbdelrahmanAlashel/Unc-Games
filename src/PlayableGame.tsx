@@ -52,12 +52,14 @@ type Difficulty = "Easy" | "Medium" | "Hard";
 type TimerStatsRecord = {
   best: number | null;
   count: number;
+  started: number;
   total: number;
 };
 
 const timeStatsStorageKey = "unc-games-time-stats-v1";
 const standardDifficulty = "Standard";
 const difficultyOptions: Difficulty[] = ["Easy", "Medium", "Hard"];
+const recentGameStarts = new Map<string, number>();
 
 function formatTime(seconds: number | null) {
   if (seconds === null) {
@@ -70,7 +72,7 @@ function formatTime(seconds: number | null) {
 }
 
 function emptyTimerStats(): TimerStatsRecord {
-  return { best: null, count: 0, total: 0 };
+  return { best: null, count: 0, started: 0, total: 0 };
 }
 
 function getTimerStatsKey(game: GameSlug, difficulty: string) {
@@ -79,24 +81,56 @@ function getTimerStatsKey(game: GameSlug, difficulty: string) {
 
 function readTimerStats() {
   try {
-    return JSON.parse(localStorage.getItem(timeStatsStorageKey) || "{}") as Record<string, TimerStatsRecord>;
+    const stored = JSON.parse(localStorage.getItem(timeStatsStorageKey) || "{}") as Record<string, Partial<TimerStatsRecord>>;
+
+    return Object.fromEntries(
+      Object.entries(stored).map(([key, value]) => [
+        key,
+        {
+          best: typeof value.best === "number" ? value.best : null,
+          count: typeof value.count === "number" ? value.count : 0,
+          started: typeof value.started === "number" ? value.started : typeof value.count === "number" ? value.count : 0,
+          total: typeof value.total === "number" ? value.total : 0,
+        },
+      ]),
+    ) as Record<string, TimerStatsRecord>;
   } catch {
     return {};
   }
 }
 
-function saveTimerResult(game: GameSlug, difficulty: string, seconds: number) {
+function saveTimerStats(key: string, stats: TimerStatsRecord) {
   const allStats = readTimerStats();
+  localStorage.setItem(timeStatsStorageKey, JSON.stringify({ ...allStats, [key]: stats }));
+  return stats;
+}
+
+function saveGameStart(game: GameSlug, difficulty: string, resetKey: number) {
   const key = getTimerStatsKey(game, difficulty);
-  const current = allStats[key] ?? emptyTimerStats();
+  const dedupeKey = `${key}:${resetKey}`;
+  const now = Date.now();
+  const recentStart = recentGameStarts.get(dedupeKey);
+
+  if (recentStart && now - recentStart < 1500) {
+    return readTimerStats()[key] ?? emptyTimerStats();
+  }
+
+  recentGameStarts.set(dedupeKey, now);
+  const current = readTimerStats()[key] ?? emptyTimerStats();
+  return saveTimerStats(key, { ...current, started: current.started + 1 });
+}
+
+function saveTimerResult(game: GameSlug, difficulty: string, seconds: number) {
+  const key = getTimerStatsKey(game, difficulty);
+  const current = readTimerStats()[key] ?? emptyTimerStats();
   const next = {
     best: current.best === null ? seconds : Math.min(current.best, seconds),
     count: current.count + 1,
+    started: Math.max(current.started, current.count + 1),
     total: current.total + seconds,
   };
 
-  localStorage.setItem(timeStatsStorageKey, JSON.stringify({ ...allStats, [key]: next }));
-  return next;
+  return saveTimerStats(key, next);
 }
 
 function useGameTimerStats(game: GameSlug, difficulty: string, completed: boolean, resetKey: number) {
@@ -106,7 +140,7 @@ function useGameTimerStats(game: GameSlug, difficulty: string, completed: boolea
 
   useEffect(() => {
     setSeconds(0);
-    setStats(readTimerStats()[getTimerStatsKey(game, difficulty)] ?? emptyTimerStats());
+    setStats(saveGameStart(game, difficulty, resetKey));
     recordedRef.current = false;
   }, [difficulty, game, resetKey]);
 
@@ -132,7 +166,7 @@ function useGameTimerStats(game: GameSlug, difficulty: string, completed: boolea
     average: stats.count ? Math.round(stats.total / stats.count) : null,
     best: stats.best,
     difficulty,
-    plays: stats.count,
+    plays: stats.started,
     seconds,
   };
 }
