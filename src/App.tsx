@@ -16,7 +16,6 @@ function GameRoom({ game, onBack }: { game: Game; onBack: () => void }) {
         </button>
         <div className="game-room-status">
           <span>{game.category}</span>
-          <span>{game.status}</span>
         </div>
       </div>
 
@@ -64,7 +63,7 @@ export default function App() {
           <span className="brand-mark">UG</span>
           <span>Unc Games</span>
         </button>
-        <span className="version-pill">v1.0 playable</span>
+        <span className="version-pill">v1.1 arcade</span>
       </header>
 
       {selectedGame ? (
@@ -120,7 +119,6 @@ export default function App() {
                   <div className="game-card-copy">
                     <div className="card-meta">
                       <span>{game.category}</span>
-                      <span>{game.status}</span>
                     </div>
                     <h3>{game.name}</h3>
                     <p>{game.mood}</p>

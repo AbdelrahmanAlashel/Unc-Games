@@ -36,13 +36,15 @@ function ControlButton({
   children,
   onClick,
   disabled,
+  className = "",
 }: {
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  className?: string;
 }) {
   return (
-    <button className="control-button" disabled={disabled} onClick={onClick} type="button">
+    <button className={`control-button ${className}`.trim()} disabled={disabled} onClick={onClick} type="button">
       {children}
     </button>
   );
@@ -55,8 +57,17 @@ type TimerStatsRecord = {
   started: number;
   total: number;
 };
+type ScoreStatsRecord = {
+  best: number | null;
+  count: number;
+  total: number;
+};
+type Outcome = "wins" | "losses" | "draws";
+type OutcomeStatsRecord = Record<Outcome, number>;
 
 const timeStatsStorageKey = "unc-games-time-stats-v1";
+const scoreStatsStorageKey = "unc-games-score-stats-v1";
+const outcomeStatsStorageKey = "unc-games-outcome-stats-v1";
 const standardDifficulty = "Standard";
 const difficultyOptions: Difficulty[] = ["Easy", "Medium", "Hard"];
 const recentGameStarts = new Map<string, number>();
@@ -75,7 +86,19 @@ function emptyTimerStats(): TimerStatsRecord {
   return { best: null, count: 0, started: 0, total: 0 };
 }
 
+function emptyScoreStats(): ScoreStatsRecord {
+  return { best: null, count: 0, total: 0 };
+}
+
+function emptyOutcomeStats(): OutcomeStatsRecord {
+  return { wins: 0, losses: 0, draws: 0 };
+}
+
 function getTimerStatsKey(game: GameSlug, difficulty: string) {
+  return `${game}:${difficulty}`;
+}
+
+function getPersistentStatsKey(game: GameSlug, difficulty: string) {
   return `${game}:${difficulty}`;
 }
 
@@ -105,6 +128,56 @@ function saveTimerStats(key: string, stats: TimerStatsRecord) {
   return stats;
 }
 
+function readScoreStats() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(scoreStatsStorageKey) || "{}") as Record<string, Partial<ScoreStatsRecord>>;
+
+    return Object.fromEntries(
+      Object.entries(stored).map(([key, value]) => [
+        key,
+        {
+          best: typeof value.best === "number" ? value.best : null,
+          count: typeof value.count === "number" ? value.count : 0,
+          total: typeof value.total === "number" ? value.total : 0,
+        },
+      ]),
+    ) as Record<string, ScoreStatsRecord>;
+  } catch {
+    return {};
+  }
+}
+
+function saveScoreStats(key: string, stats: ScoreStatsRecord) {
+  const allStats = readScoreStats();
+  localStorage.setItem(scoreStatsStorageKey, JSON.stringify({ ...allStats, [key]: stats }));
+  return stats;
+}
+
+function readOutcomeStats() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(outcomeStatsStorageKey) || "{}") as Record<string, Partial<OutcomeStatsRecord>>;
+
+    return Object.fromEntries(
+      Object.entries(stored).map(([key, value]) => [
+        key,
+        {
+          wins: typeof value.wins === "number" ? value.wins : 0,
+          losses: typeof value.losses === "number" ? value.losses : 0,
+          draws: typeof value.draws === "number" ? value.draws : 0,
+        },
+      ]),
+    ) as Record<string, OutcomeStatsRecord>;
+  } catch {
+    return {};
+  }
+}
+
+function saveOutcomeStats(key: string, stats: OutcomeStatsRecord) {
+  const allStats = readOutcomeStats();
+  localStorage.setItem(outcomeStatsStorageKey, JSON.stringify({ ...allStats, [key]: stats }));
+  return stats;
+}
+
 function saveGameStart(game: GameSlug, difficulty: string, resetKey: number) {
   const key = getTimerStatsKey(game, difficulty);
   const dedupeKey = `${key}:${resetKey}`;
@@ -131,6 +204,24 @@ function saveTimerResult(game: GameSlug, difficulty: string, seconds: number) {
   };
 
   return saveTimerStats(key, next);
+}
+
+function saveScoreResult(game: GameSlug, difficulty: string, score: number) {
+  const key = getPersistentStatsKey(game, difficulty);
+  const current = readScoreStats()[key] ?? emptyScoreStats();
+  const next = {
+    best: current.best === null ? score : Math.max(current.best, score),
+    count: current.count + 1,
+    total: current.total + score,
+  };
+
+  return saveScoreStats(key, next);
+}
+
+function saveOutcomeResult(game: GameSlug, difficulty: string, outcome: Outcome) {
+  const key = getPersistentStatsKey(game, difficulty);
+  const current = readOutcomeStats()[key] ?? emptyOutcomeStats();
+  return saveOutcomeStats(key, { ...current, [outcome]: current[outcome] + 1 });
 }
 
 function useGameTimerStats(game: GameSlug, difficulty: string, completed: boolean, resetKey: number) {
@@ -171,15 +262,109 @@ function useGameTimerStats(game: GameSlug, difficulty: string, completed: boolea
   };
 }
 
-function TimerStats({ stats }: { stats: ReturnType<typeof useGameTimerStats> }) {
+function useScoreStats(game: GameSlug, difficulty: string, completed: boolean, score: number, resetKey: number) {
+  const [stats, setStats] = useState<ScoreStatsRecord>(() => readScoreStats()[getPersistentStatsKey(game, difficulty)] ?? emptyScoreStats());
+  const recordedRef = useRef(false);
+
+  useEffect(() => {
+    setStats(readScoreStats()[getPersistentStatsKey(game, difficulty)] ?? emptyScoreStats());
+    recordedRef.current = false;
+  }, [difficulty, game, resetKey]);
+
+  useEffect(() => {
+    if (!completed || recordedRef.current) {
+      return;
+    }
+
+    recordedRef.current = true;
+    setStats(saveScoreResult(game, difficulty, score));
+  }, [completed, difficulty, game, score]);
+
+  return {
+    average: stats.count ? Math.round(stats.total / stats.count) : null,
+    best: stats.best,
+    games: stats.count,
+  };
+}
+
+function useOutcomeStats(game: GameSlug, difficulty: string, outcome: Outcome | null, resetKey: number) {
+  const [stats, setStats] = useState<OutcomeStatsRecord>(() => readOutcomeStats()[getPersistentStatsKey(game, difficulty)] ?? emptyOutcomeStats());
+  const recordedRef = useRef(false);
+
+  useEffect(() => {
+    setStats(readOutcomeStats()[getPersistentStatsKey(game, difficulty)] ?? emptyOutcomeStats());
+    recordedRef.current = false;
+  }, [difficulty, game, resetKey]);
+
+  useEffect(() => {
+    if (!outcome || recordedRef.current) {
+      return;
+    }
+
+    recordedRef.current = true;
+    setStats(saveOutcomeResult(game, difficulty, outcome));
+  }, [difficulty, game, outcome]);
+
+  return stats;
+}
+
+function TimerStats({
+  stats,
+  showDifficulty = true,
+}: {
+  stats: ReturnType<typeof useGameTimerStats>;
+  showDifficulty?: boolean;
+}) {
   return (
     <>
       <span>Time {formatTime(stats.seconds)}</span>
-      <span>{stats.difficulty}</span>
+      {showDifficulty ? <span>{stats.difficulty}</span> : null}
       <span>Best {formatTime(stats.best)}</span>
       <span>Average {formatTime(stats.average)}</span>
       <span>Games {stats.plays}</span>
     </>
+  );
+}
+
+function ScoreStats({ stats }: { stats: ReturnType<typeof useScoreStats> }) {
+  return (
+    <>
+      <span>Best score {stats.best ?? 0}</span>
+      <span>Average score {stats.average ?? 0}</span>
+      <span>Scored games {stats.games}</span>
+    </>
+  );
+}
+
+function OutcomeStats({ stats }: { stats: OutcomeStatsRecord }) {
+  return (
+    <>
+      <span>Wins {stats.wins}</span>
+      <span>Losses {stats.losses}</span>
+      <span>Draws {stats.draws}</span>
+    </>
+  );
+}
+
+function OptionTabs<T extends string>({
+  active,
+  label = "Choose difficulty",
+  onChange,
+  options,
+}: {
+  active: T;
+  label?: string;
+  onChange: (option: T) => void;
+  options: readonly T[];
+}) {
+  return (
+    <div className="difficulty-tabs" role="group" aria-label={label}>
+      {options.map((option) => (
+        <button aria-pressed={active === option} className="difficulty-tab" key={option} onClick={() => onChange(option)} type="button">
+          {option}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -190,21 +375,7 @@ function DifficultyTabs({
   active: Difficulty;
   onChange: (difficulty: Difficulty) => void;
 }) {
-  return (
-    <div className="difficulty-tabs" role="group" aria-label="Choose difficulty">
-      {difficultyOptions.map((difficulty) => (
-        <button
-          aria-pressed={active === difficulty}
-          className="difficulty-tab"
-          key={difficulty}
-          onClick={() => onChange(difficulty)}
-          type="button"
-        >
-          {difficulty}
-        </button>
-      ))}
-    </div>
-  );
+  return <OptionTabs active={active} onChange={onChange} options={difficultyOptions} />;
 }
 
 const sudokuCluesByDifficulty: Record<Difficulty, number> = {
@@ -284,8 +455,25 @@ function SudokuGame() {
       return;
     }
 
-    setValues((current) => current.map((cell, index) => (index === selected ? value : cell)));
+    setValues((current) => current.map((cell, index) => (index === selected ? (cell === value ? 0 : value) : cell)));
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key >= "1" && event.key <= "9") {
+        event.preventDefault();
+        setCellValue(Number(event.key));
+      }
+
+      if (event.key === "Backspace" || event.key === "Delete" || event.key === "0") {
+        event.preventDefault();
+        setCellValue(0);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   return (
     <GamePanel
@@ -319,13 +507,20 @@ function SudokuGame() {
           })}
         </div>
         <div className="number-pad" aria-label="Sudoku number pad">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((value) => (
-            correctCounts[value] < 9 ? (
-              <ControlButton key={value} onClick={() => setCellValue(value)}>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((value) => {
+            const completedNumber = correctCounts[value] >= 9;
+
+            return (
+              <ControlButton
+                className={completedNumber ? "complete-number" : ""}
+                disabled={completedNumber}
+                key={value}
+                onClick={() => setCellValue(value)}
+              >
                 {value}
               </ControlButton>
-            ) : null
-          ))}
+            );
+          })}
           <ControlButton onClick={() => setCellValue(0)}>Clear</ControlButton>
         </div>
       </div>
@@ -593,13 +788,16 @@ function TwentyFortyEightGame() {
   const [lost, setLost] = useState(false);
   const [won, setWon] = useState(false);
   const [round, setRound] = useState(0);
+  const [moveTick, setMoveTick] = useState(0);
   const timerStats = useGameTimerStats("2048", standardDifficulty, won, round);
+  const scoreStats = useScoreStats("2048", standardDifficulty, won || lost, score, round);
 
   function reset() {
     setBoard(start2048Board());
     setScore(0);
     setLost(false);
     setWon(false);
+    setMoveTick(0);
     setRound((current) => current + 1);
   }
 
@@ -616,6 +814,7 @@ function TwentyFortyEightGame() {
       }
 
       const withTile = addRandomTile(result.board);
+      setMoveTick((currentTick) => currentTick + 1);
       setScore((currentScore) => currentScore + result.gained);
       setWon(withTile.flat().some((value) => value >= 2048));
       setLost(!canMove2048(withTile));
@@ -648,13 +847,18 @@ function TwentyFortyEightGame() {
       title="2048"
       status={won ? `2048 reached, score ${score}` : lost ? `No moves, score ${score}` : `Score ${score}`}
       actions={<ControlButton onClick={reset}>New game</ControlButton>}
-      meta={<TimerStats stats={timerStats} />}
+      meta={
+        <>
+          <TimerStats showDifficulty={false} stats={timerStats} />
+          <ScoreStats stats={scoreStats} />
+        </>
+      }
     >
       <div className="number-game-layout">
         <div className="twenty-board">
           {board.flatMap((row, rowIndex) =>
             row.map((value, colIndex) => (
-              <div className={`twenty-cell value-${value}`} key={`${rowIndex}-${colIndex}`}>
+              <div className={`twenty-cell value-${value} ${value ? "tile-pop" : ""}`} key={`${rowIndex}-${colIndex}-${moveTick}`}>
                 {value || ""}
               </div>
             )),
@@ -679,23 +883,37 @@ type MemoryCard = {
   matched: boolean;
 };
 
-function createMemoryDeck(): MemoryCard[] {
-  return ["A", "B", "C", "D", "E", "F", "G", "H"]
+type MemoryDifficulty = "Easy" | "Hard";
+
+const memoryDifficultyOptions = ["Easy", "Hard"] as const;
+const memoryConfigs: Record<MemoryDifficulty, { columns: number; pairs: number }> = {
+  Easy: { columns: 4, pairs: 8 },
+  Hard: { columns: 6, pairs: 12 },
+};
+
+function createMemoryDeck(pairCount: number): MemoryCard[] {
+  return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    .slice(0, pairCount)
+    .split("")
     .flatMap((label) => [label, label])
     .map((label, id) => ({ id, label, matched: false }))
     .sort(() => Math.random() - 0.5);
 }
 
 function MemoryMatchGame() {
-  const [cards, setCards] = useState(createMemoryDeck);
+  const [difficulty, setDifficulty] = useState<MemoryDifficulty>("Easy");
+  const config = memoryConfigs[difficulty];
+  const [cards, setCards] = useState(() => createMemoryDeck(memoryConfigs.Easy.pairs));
   const [flipped, setFlipped] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
   const [round, setRound] = useState(0);
   const won = cards.every((card) => card.matched);
-  const timerStats = useGameTimerStats("memory-match", standardDifficulty, won, round);
+  const timerStats = useGameTimerStats("memory-match", difficulty, won, round);
 
-  function reset() {
-    setCards(createMemoryDeck());
+  function reset(nextDifficulty = difficulty) {
+    const nextConfig = memoryConfigs[nextDifficulty];
+    setDifficulty(nextDifficulty);
+    setCards(createMemoryDeck(nextConfig.pairs));
     setFlipped([]);
     setMoves(0);
     setRound((current) => current + 1);
@@ -734,7 +952,8 @@ function MemoryMatchGame() {
       actions={<ControlButton onClick={reset}>Shuffle</ControlButton>}
       meta={<TimerStats stats={timerStats} />}
     >
-      <div className="memory-board">
+      <OptionTabs active={difficulty} onChange={reset} options={memoryDifficultyOptions} />
+      <div className="memory-board" style={{ "--memory-columns": config.columns } as CSSProperties}>
         {cards.map((card, index) => {
           const open = card.matched || flipped.includes(index);
 
@@ -751,8 +970,10 @@ function MemoryMatchGame() {
 
 type WordCell = { row: number; col: number };
 type WordTarget = { word: string; path: WordCell[] };
+type WordDifficulty = "Easy" | "Hard";
 
-const wordRows = [
+const wordDifficultyOptions = ["Easy", "Hard"] as const;
+const easyWordRows = [
   "UNCGAMESQZ",
   "XPQRTYUIOA",
   "SUDOKUABCD",
@@ -765,7 +986,7 @@ const wordRows = [
   "CHESSBOARD",
 ];
 
-const wordTargets: WordTarget[] = [
+const easyWordTargets: WordTarget[] = [
   { word: "UNC", path: [0, 1, 2].map((col) => ({ row: 0, col })) },
   { word: "GAMES", path: [3, 4, 5, 6, 7].map((col) => ({ row: 0, col })) },
   { word: "SUDOKU", path: [0, 1, 2, 3, 4, 5].map((col) => ({ row: 2, col })) },
@@ -774,23 +995,75 @@ const wordTargets: WordTarget[] = [
   { word: "SNAKE", path: [1, 2, 3, 4, 5].map((col) => ({ row: 8, col })) },
 ];
 
+const hardWordRows = [
+  "UNCGAMESPLAY",
+  "ZXQWORDHUNTS",
+  "SUDOKUABCDR",
+  "LMNOPQRSTUVX",
+  "MATRIXWYZABC",
+  "ICHESSLMNOPQ",
+  "NPQRABCDEFST",
+  "EGHIJKLMNOUL",
+  "SSNAKEPQRTKI",
+  "CHESSBOARDER",
+  "MEMORYMATCHX",
+  "SOLITAIREBOX",
+];
+
+const hardWordTargets: WordTarget[] = [
+  { word: "UNC", path: [0, 1, 2].map((col) => ({ row: 0, col })) },
+  { word: "GAMES", path: [3, 4, 5, 6, 7].map((col) => ({ row: 0, col })) },
+  { word: "PLAY", path: [8, 9, 10, 11].map((col) => ({ row: 0, col })) },
+  { word: "WORD", path: [3, 4, 5, 6].map((col) => ({ row: 1, col })) },
+  { word: "SUDOKU", path: [0, 1, 2, 3, 4, 5].map((col) => ({ row: 2, col })) },
+  { word: "MINES", path: [4, 5, 6, 7, 8].map((row) => ({ row, col: 0 })) },
+  { word: "CHESS", path: [1, 2, 3, 4, 5].map((col) => ({ row: 5, col })) },
+  { word: "SNAKE", path: [1, 2, 3, 4, 5].map((col) => ({ row: 8, col })) },
+  { word: "BOARD", path: [5, 6, 7, 8, 9].map((col) => ({ row: 9, col })) },
+  { word: "MEMORY", path: [0, 1, 2, 3, 4, 5].map((col) => ({ row: 10, col })) },
+  { word: "MATCH", path: [6, 7, 8, 9, 10].map((col) => ({ row: 10, col })) },
+  { word: "SOLITAIRE", path: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((col) => ({ row: 11, col })) },
+];
+
+const wordPuzzles: Record<WordDifficulty, { rows: string[]; targets: WordTarget[] }> = {
+  Easy: { rows: easyWordRows, targets: easyWordTargets },
+  Hard: { rows: hardWordRows, targets: hardWordTargets },
+};
+
 function pathKey(path: WordCell[]) {
   return path.map((cell) => `${cell.row}-${cell.col}`).join("|");
 }
 
+function cellKey(cell: WordCell) {
+  return `${cell.row}-${cell.col}`;
+}
+
+function sameCell(a: WordCell, b: WordCell) {
+  return a.row === b.row && a.col === b.col;
+}
+
+function adjacentWordCell(a: WordCell, b: WordCell) {
+  return !sameCell(a, b) && Math.abs(a.row - b.row) <= 1 && Math.abs(a.col - b.col) <= 1;
+}
+
 function WordSearchGame() {
+  const [difficulty, setDifficulty] = useState<WordDifficulty>("Easy");
   const [selected, setSelected] = useState<WordCell[]>([]);
   const [found, setFound] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [round, setRound] = useState(0);
-  const maxWordLength = Math.max(...wordTargets.map((target) => target.path.length));
-  const foundCellKeys = new Set(wordTargets.filter((target) => found.includes(target.word)).flatMap((target) => target.path.map((cell) => `${cell.row}-${cell.col}`)));
-  const selectedKey = pathKey(selected);
-  const complete = found.length === wordTargets.length;
-  const timerStats = useGameTimerStats("word-search", standardDifficulty, complete, round);
+  const puzzle = wordPuzzles[difficulty];
+  const maxWordLength = Math.max(...puzzle.targets.map((target) => target.path.length));
+  const foundCellKeys = new Set(puzzle.targets.filter((target) => found.includes(target.word)).flatMap((target) => target.path.map(cellKey)));
+  const selectedCellKeys = new Set(selected.map(cellKey));
+  const complete = found.length === puzzle.targets.length;
+  const timerStats = useGameTimerStats("word-search", difficulty, complete, round);
 
-  function reset() {
+  function reset(nextDifficulty = difficulty) {
+    setDifficulty(nextDifficulty);
     setSelected([]);
     setFound([]);
+    setDragging(false);
     setRound((current) => current + 1);
   }
 
@@ -799,27 +1072,51 @@ function WordSearchGame() {
       return;
     }
 
-    const nextSelection = selected.length >= maxWordLength ? [cell] : [...selected, cell];
-    const nextKey = pathKey(nextSelection);
-    const match = wordTargets.find((target) => {
-      const forward = pathKey(target.path);
-      const backward = pathKey([...target.path].reverse());
-      return (nextKey === forward || nextKey === backward) && !found.includes(target.word);
-    });
+    setSelected((current) => {
+      const lastCell = current.at(-1);
+      const nextSelection =
+        !lastCell || current.length >= maxWordLength || !adjacentWordCell(lastCell, cell)
+          ? [cell]
+          : sameCell(lastCell, cell)
+            ? current
+            : [...current, cell];
+      const nextKey = pathKey(nextSelection);
+      const match = puzzle.targets.find((target) => {
+        const forward = pathKey(target.path);
+        const backward = pathKey([...target.path].reverse());
+        return (nextKey === forward || nextKey === backward) && !found.includes(target.word);
+      });
 
-    if (match) {
-      setFound((current) => [...current, match.word]);
-      setSelected([]);
+      if (match) {
+        setFound((currentFound) => (currentFound.includes(match.word) ? currentFound : [...currentFound, match.word]));
+        return [];
+      }
+
+      return nextSelection;
+    });
+  }
+
+  useEffect(() => {
+    if (!dragging) {
       return;
     }
 
-    setSelected(nextSelection);
-  }
+    function stopDragging() {
+      setDragging(false);
+    }
+
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+    return () => {
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, [dragging]);
 
   return (
     <GamePanel
       title="Word Search"
-      status={complete ? "All words found" : `${found.length}/${wordTargets.length} found`}
+      status={complete ? "All words found" : `${found.length}/${puzzle.targets.length} found`}
       actions={
         <>
           <ControlButton onClick={() => setSelected([])}>Clear picks</ControlButton>
@@ -829,18 +1126,30 @@ function WordSearchGame() {
       meta={<TimerStats stats={timerStats} />}
     >
       <div className="word-layout">
-        <div className="word-board">
-          {wordRows.flatMap((row, rowIndex) =>
+        <OptionTabs active={difficulty} onChange={reset} options={wordDifficultyOptions} />
+        <div className="word-board" style={{ "--word-size": puzzle.rows.length } as CSSProperties}>
+          {puzzle.rows.flatMap((row, rowIndex) =>
             row.split("").map((letter, colIndex) => {
               const key = `${rowIndex}-${colIndex}`;
-              const isSelected = selectedKey.includes(key);
+              const cell = { row: rowIndex, col: colIndex };
+              const isSelected = selectedCellKeys.has(key);
               const isFound = foundCellKeys.has(key);
 
               return (
                 <button
                   className={`word-cell ${isSelected ? "selected" : ""} ${isFound ? "found" : ""}`}
                   key={key}
-                  onClick={() => chooseCell({ row: rowIndex, col: colIndex })}
+                  onClick={() => chooseCell(cell)}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    setDragging(true);
+                    chooseCell(cell);
+                  }}
+                  onPointerEnter={() => {
+                    if (dragging) {
+                      chooseCell(cell);
+                    }
+                  }}
                   type="button"
                 >
                   {letter}
@@ -850,7 +1159,7 @@ function WordSearchGame() {
           )}
         </div>
         <div className="word-list">
-          {wordTargets.map((target) => (
+          {puzzle.targets.map((target) => (
             <span className={found.includes(target.word) ? "found" : ""} key={target.word}>
               {target.word}
             </span>
@@ -863,7 +1172,6 @@ function WordSearchGame() {
 
 type Point = { x: number; y: number };
 const snakeSize = 16;
-const snakeGoal = 10;
 const initialSnake = [
   { x: 8, y: 8 },
   { x: 7, y: 8 },
@@ -874,32 +1182,48 @@ function samePoint(a: Point, b: Point) {
   return a.x === b.x && a.y === b.y;
 }
 
-function randomFood(snake: Point[]) {
-  let food = { x: 3, y: 3 };
+function pointKey(point: Point) {
+  return `${point.x}-${point.y}`;
+}
 
-  do {
-    food = { x: Math.floor(Math.random() * snakeSize), y: Math.floor(Math.random() * snakeSize) };
-  } while (snake.some((segment) => samePoint(segment, food)));
+function randomFood(snake: Point[], blocked: Point[] = []) {
+  const unavailable = new Set([...snake, ...blocked].map(pointKey));
+  const available = Array.from({ length: snakeSize * snakeSize }, (_, index) => ({ x: index % snakeSize, y: Math.floor(index / snakeSize) })).filter(
+    (point) => !unavailable.has(pointKey(point)),
+  );
 
-  return food;
+  return available[Math.floor(Math.random() * available.length)] ?? { x: 0, y: 0 };
 }
 
 function SnakeGame() {
   const [snake, setSnake] = useState(initialSnake);
   const [food, setFood] = useState(() => randomFood(initialSnake));
+  const [bigFood, setBigFood] = useState<{ expiresAt: number; point: Point } | null>(null);
+  const [foodEaten, setFoodEaten] = useState(0);
   const [direction, setDirection] = useState<Direction>("right");
   const [running, setRunning] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
   const [round, setRound] = useState(0);
-  const won = score >= snakeGoal;
+  const won = snake.length >= snakeSize * snakeSize;
   const timerStats = useGameTimerStats("snake", standardDifficulty, won, round);
+  const scoreStats = useScoreStats("snake", standardDifficulty, gameOver || won, score, round);
   const directionRef = useRef(direction);
+  const growthRef = useRef(0);
+  const bigFoodRef = useRef(bigFood);
+  const snakeDelay = Math.max(55, 150 - Math.floor(snake.length / 7) * 6);
+
+  useEffect(() => {
+    bigFoodRef.current = bigFood;
+  }, [bigFood]);
 
   function reset() {
     directionRef.current = "right";
+    growthRef.current = 0;
     setSnake(initialSnake);
     setFood(randomFood(initialSnake));
+    setBigFood(null);
+    setFoodEaten(0);
     setDirection("right");
     setRunning(false);
     setGameOver(false);
@@ -944,6 +1268,15 @@ function SnakeGame() {
   });
 
   useEffect(() => {
+    if (!bigFood) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setBigFood(null), Math.max(0, bigFood.expiresAt - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [bigFood]);
+
+  useEffect(() => {
     if (!running || gameOver || won) {
       return;
     }
@@ -961,7 +1294,12 @@ function SnakeGame() {
           x: (head.x + vector[directionRef.current].x + snakeSize) % snakeSize,
           y: (head.y + vector[directionRef.current].y + snakeSize) % snakeSize,
         };
-        const hitSelf = current.some((segment) => samePoint(segment, nextHead));
+        const currentBigFood = bigFoodRef.current && bigFoodRef.current.expiresAt > Date.now() ? bigFoodRef.current : null;
+        const ate = samePoint(nextHead, food);
+        const ateBigFood = Boolean(currentBigFood && samePoint(nextHead, currentBigFood.point));
+        const willGrow = ate || ateBigFood || growthRef.current > 0;
+        const collisionBody = willGrow ? current : current.slice(0, -1);
+        const hitSelf = collisionBody.some((segment) => samePoint(segment, nextHead));
 
         if (hitSelf) {
           setGameOver(true);
@@ -969,43 +1307,65 @@ function SnakeGame() {
           return current;
         }
 
-        const ate = samePoint(nextHead, food);
-        const nextSnake = ate ? [nextHead, ...current] : [nextHead, ...current.slice(0, -1)];
+        const nextSnake = willGrow ? [nextHead, ...current] : [nextHead, ...current.slice(0, -1)];
 
         if (ate) {
-          setScore((currentScore) => {
-            const nextScore = currentScore + 1;
+          setFoodEaten((currentFoodEaten) => {
+            const nextFoodEaten = currentFoodEaten + 1;
 
-            if (nextScore >= snakeGoal) {
-              setRunning(false);
+            if (nextFoodEaten % 10 === 0 && nextSnake.length < snakeSize * snakeSize - 1) {
+              setBigFood({ expiresAt: Date.now() + 5000, point: randomFood(nextSnake, [food]) });
             }
 
+            return nextFoodEaten;
+          });
+          setScore((currentScore) => {
+            const nextScore = currentScore + 1;
             return nextScore;
           });
-          setFood(randomFood(nextSnake));
+          if (nextSnake.length < snakeSize * snakeSize) {
+            setFood(randomFood(nextSnake, currentBigFood ? [currentBigFood.point] : []));
+          }
+        }
+
+        if (ateBigFood) {
+          growthRef.current += 2;
+          setBigFood(null);
+          setScore((currentScore) => currentScore + 3);
+        } else if (growthRef.current > 0 && !ate) {
+          growthRef.current -= 1;
+        }
+
+        if (nextSnake.length >= snakeSize * snakeSize) {
+          setRunning(false);
         }
 
         return nextSnake;
       });
-    }, 140);
+    }, snakeDelay);
 
     return () => window.clearInterval(timer);
-  }, [food, gameOver, running, won]);
+  }, [food, gameOver, running, snakeDelay, won]);
 
   return (
     <GamePanel
       title="Snake"
       status={
         won
-          ? `Goal reached, score ${score}`
+          ? `Board filled, score ${score}`
           : gameOver
             ? `Game over, score ${score}`
             : running
-              ? `Moving ${direction}, score ${score}/${snakeGoal}`
-              : `Ready, score ${score}/${snakeGoal}`
+              ? `Moving ${direction}, score ${score}`
+              : `Ready, score ${score}`
       }
       actions={<ControlButton onClick={reset}>Reset</ControlButton>}
-      meta={<TimerStats stats={timerStats} />}
+      meta={
+        <>
+          <TimerStats showDifficulty={false} stats={timerStats} />
+          <ScoreStats stats={scoreStats} />
+        </>
+      }
     >
       <div className="snake-layout">
         <div className="snake-board">
@@ -1014,8 +1374,16 @@ function SnakeGame() {
             const isSnake = snake.some((segment) => samePoint(segment, point));
             const isHead = samePoint(snake[0], point);
             const isFood = samePoint(food, point);
+            const isBigFood = Boolean(bigFood && samePoint(bigFood.point, point));
 
-            return <span className={`${isSnake ? "snake-body" : ""} ${isHead ? "snake-head" : ""} ${isFood ? "snake-food" : ""}`} key={index} />;
+            return (
+              <span
+                className={`${isSnake ? "snake-body" : ""} ${isHead ? "snake-head" : ""} ${isFood ? "snake-food" : ""} ${
+                  isBigFood ? "snake-big-food" : ""
+                }`}
+                key={index}
+              />
+            );
           })}
         </div>
         <div className="d-pad">
@@ -1036,6 +1404,7 @@ function SnakeGame() {
 
 type Suit = "spades" | "hearts" | "diamonds" | "clubs";
 type Card = { id: string; suit: Suit; rank: number; faceUp: boolean };
+type SolitaireDifficulty = "Easy" | "Hard";
 type SolitaireState = {
   stock: Card[];
   waste: Card[];
@@ -1049,7 +1418,8 @@ type SolitaireSelection =
   | { source: "tableau"; pile: number; index: number };
 
 const suits: Suit[] = ["spades", "hearts", "diamonds", "clubs"];
-const suitSymbols: Record<Suit, string> = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣" };
+const solitaireDifficultyOptions = ["Easy", "Hard"] as const;
+const suitSymbols: Record<Suit, string> = { spades: "\u2660", hearts: "\u2665", diamonds: "\u2666", clubs: "\u2663" };
 const redSuits = new Set<Suit>(["hearts", "diamonds"]);
 
 function cardRankLabel(card: Card) {
@@ -1152,24 +1522,66 @@ function canPlaceOnFoundation(card: Card, foundation: Card[], suit: Suit) {
   return top ? card.rank === top.rank + 1 : card.rank === 1;
 }
 
+function allTableauCardsFaceUp(state: SolitaireState) {
+  return state.tableau.every((pile) => pile.every((card) => card.faceUp));
+}
+
+function autoCompleteSolitaireState(current: SolitaireState) {
+  const next: SolitaireState = structuredClone({ ...current, selected: null });
+  const allCards = [
+    ...next.stock,
+    ...next.waste,
+    ...next.tableau.flat(),
+    ...suits.flatMap((suit) => next.foundations[suit]),
+  ].map((card) => ({ ...card, faceUp: true }));
+
+  next.stock = [];
+  next.waste = [];
+  next.tableau = Array.from({ length: 7 }, () => []);
+  next.foundations = { spades: [], hearts: [], diamonds: [], clubs: [] };
+
+  suits.forEach((suit) => {
+    next.foundations[suit] = allCards.filter((card) => card.suit === suit).sort((first, second) => first.rank - second.rank);
+  });
+
+  return next;
+}
+
 function SolitaireGame() {
+  const [difficulty, setDifficulty] = useState<SolitaireDifficulty>("Easy");
   const [state, setState] = useState(createSolitaireState);
   const [round, setRound] = useState(0);
   const won = suits.every((suit) => state.foundations[suit].length === 13);
-  const timerStats = useGameTimerStats("solitaire", standardDifficulty, won, round);
+  const readyToAutoComplete = !won && state.stock.length === 0 && allTableauCardsFaceUp(state);
+  const timerStats = useGameTimerStats("solitaire", difficulty, won, round);
+  const waterfallCards = suits.flatMap((suit) => state.foundations[suit]);
 
-  function reset() {
+  function reset(nextDifficulty = difficulty) {
+    setDifficulty(nextDifficulty);
     setState(createSolitaireState());
     setRound((current) => current + 1);
   }
+
+  useEffect(() => {
+    if (!readyToAutoComplete) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setState(autoCompleteSolitaireState), 400);
+    return () => window.clearTimeout(timer);
+  }, [readyToAutoComplete]);
 
   function draw() {
     setState((current) => {
       const next: SolitaireState = structuredClone({ ...current, selected: null });
 
       if (next.stock.length) {
-        const card = next.stock.pop()!;
-        next.waste.push({ ...card, faceUp: true });
+        const drawCount = difficulty === "Hard" ? 3 : 1;
+
+        for (let index = 0; index < drawCount && next.stock.length; index += 1) {
+          const card = next.stock.pop()!;
+          next.waste.push({ ...card, faceUp: true });
+        }
       } else {
         next.stock = next.waste.reverse().map((card) => ({ ...card, faceUp: false }));
         next.waste = [];
@@ -1253,11 +1665,12 @@ function SolitaireGame() {
     <GamePanel
       className="solitaire-panel"
       title="Solitaire"
-      status={won ? "All foundations complete" : `${state.stock.length} stock, ${state.waste.length} waste`}
+      status={won ? "All foundations complete" : `${difficulty} draw, ${state.stock.length} stock, ${state.waste.length} waste`}
       actions={<ControlButton onClick={reset}>New deal</ControlButton>}
       meta={<TimerStats stats={timerStats} />}
     >
       <div className="solitaire">
+        <OptionTabs active={difficulty} onChange={reset} options={solitaireDifficultyOptions} />
         <div className="solitaire-top">
           <button className="playing-card card-back" onClick={draw} type="button">
             {state.stock.length ? state.stock.length : "Deal"}
@@ -1310,7 +1723,7 @@ function SolitaireGame() {
                     event.stopPropagation();
                     moveSelectionToAnyFoundation({ source: "tableau", pile: pileIndex, index: cardIndex });
                   }}
-                  style={{ top: `${cardIndex * 38}px` }}
+                  style={{ top: `${cardIndex * 32}px` }}
                   type="button"
                 >
                   {card.faceUp ? <CardFace card={card} /> : ""}
@@ -1319,49 +1732,146 @@ function SolitaireGame() {
             </div>
           ))}
         </div>
+        {won ? (
+          <div className="solitaire-waterfall" aria-hidden="true">
+            {waterfallCards.map((card, index) => (
+              <span
+                className={`waterfall-card ${redSuits.has(card.suit) ? "red" : ""}`}
+                key={`${card.id}-fall`}
+                style={{ "--fall-index": index } as CSSProperties}
+              >
+                <CardFace card={card} />
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
     </GamePanel>
   );
 }
 
 const pieceSymbols: Record<string, string> = {
-  wp: "P",
-  wn: "N",
-  wb: "B",
-  wr: "R",
-  wq: "Q",
-  wk: "K",
-  bp: "p",
-  bn: "n",
-  bb: "b",
-  br: "r",
-  bq: "q",
-  bk: "k",
+  wp: "\u2659",
+  wn: "\u2658",
+  wb: "\u2657",
+  wr: "\u2656",
+  wq: "\u2655",
+  wk: "\u2654",
+  bp: "\u265F",
+  bn: "\u265E",
+  bb: "\u265D",
+  br: "\u265C",
+  bq: "\u265B",
+  bk: "\u265A",
 };
 
+type ChessDifficulty = "Beginner" | "Intermediate" | "Expert";
+
+const chessDifficultyOptions = ["Beginner", "Intermediate", "Expert"] as const;
+const pieceValues: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+function scoreChessBoard(game: Chess) {
+  return game
+    .board()
+    .flat()
+    .reduce((score, piece) => {
+      if (!piece) {
+        return score;
+      }
+
+      const value = pieceValues[piece.type] ?? 0;
+      return score + (piece.color === "b" ? value : -value);
+    }, 0);
+}
+
+function chooseAiMove(game: Chess, difficulty: ChessDifficulty) {
+  const moves = game.moves({ verbose: true });
+
+  if (!moves.length) {
+    return null;
+  }
+
+  if (difficulty === "Beginner") {
+    return moves[Math.floor(Math.random() * moves.length)].san;
+  }
+
+  const scoredMoves = moves.map((move) => {
+    const next = new Chess(game.fen());
+    next.move(move.san);
+
+    const capturedValue = move.captured ? pieceValues[move.captured] ?? 0 : 0;
+    const promotionValue = move.promotion ? pieceValues[move.promotion] ?? 0 : 0;
+    const centerBonus = ["d4", "d5", "e4", "e5"].includes(move.to) ? 5 : 0;
+    const checkBonus = next.isCheckmate() ? 10000 : next.inCheck() ? 30 : 0;
+    const materialBonus = difficulty === "Expert" ? scoreChessBoard(next) * 8 : 0;
+
+    return {
+      san: move.san,
+      score: capturedValue * 70 + promotionValue * 25 + centerBonus + checkBonus + materialBonus + Math.random(),
+    };
+  });
+
+  return scoredMoves.sort((first, second) => second.score - first.score)[0].san;
+}
+
 function ChessGame() {
+  const [difficulty, setDifficulty] = useState<ChessDifficulty>("Beginner");
   const [fen, setFen] = useState(new Chess().fen());
   const [selected, setSelected] = useState<Square | null>(null);
   const [round, setRound] = useState(0);
   const game = useMemo(() => new Chess(fen), [fen]);
   const complete = game.isCheckmate() || game.isDraw();
-  const timerStats = useGameTimerStats("chess", standardDifficulty, complete, round);
-  const legalTargets = selected ? game.moves({ square: selected, verbose: true }).map((move) => move.to) : [];
+  const outcome: Outcome | null = game.isCheckmate() ? (game.turn() === "b" ? "wins" : "losses") : game.isDraw() ? "draws" : null;
+  const outcomeStats = useOutcomeStats("chess", difficulty, outcome, round);
+  const legalTargets = selected && game.turn() === "w" ? game.moves({ square: selected, verbose: true }).map((move) => move.to) : [];
   const status = game.isCheckmate()
-    ? `Checkmate, ${game.turn() === "w" ? "black" : "white"} wins`
+    ? game.turn() === "b"
+      ? "Checkmate, you win"
+      : "Checkmate, AI wins"
     : game.isDraw()
       ? "Draw"
       : game.inCheck()
-        ? `${game.turn() === "w" ? "White" : "Black"} to move, check`
-        : `${game.turn() === "w" ? "White" : "Black"} to move`;
+        ? game.turn() === "w"
+          ? "Your move, check"
+          : "AI thinking, check"
+        : game.turn() === "w"
+          ? "Your move"
+          : "AI thinking";
 
-  function reset() {
+  function reset(nextDifficulty = difficulty) {
+    setDifficulty(nextDifficulty);
     setFen(new Chess().fen());
     setSelected(null);
     setRound((current) => current + 1);
   }
 
+  useEffect(() => {
+    if (complete || game.turn() !== "b") {
+      return;
+    }
+
+    const timer = window.setTimeout(
+      () => {
+        const next = new Chess(fen);
+        const aiMove = chooseAiMove(next, difficulty);
+
+        if (aiMove) {
+          next.move(aiMove);
+          setFen(next.fen());
+          setSelected(null);
+        }
+      },
+      difficulty === "Expert" ? 420 : 260,
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [complete, difficulty, fen, game]);
+
   function clickSquare(square: Square) {
+    if (complete || game.turn() !== "w") {
+      return;
+    }
+
     const piece = game.get(square);
 
     if (selected) {
@@ -1375,7 +1885,7 @@ function ChessGame() {
       }
     }
 
-    if (piece && piece.color === game.turn()) {
+    if (piece && piece.color === "w") {
       setSelected(square);
     } else {
       setSelected(null);
@@ -1383,7 +1893,8 @@ function ChessGame() {
   }
 
   return (
-    <GamePanel title="Chess" status={status} actions={<ControlButton onClick={reset}>Reset board</ControlButton>} meta={<TimerStats stats={timerStats} />}>
+    <GamePanel title="Chess" status={status} actions={<ControlButton onClick={reset}>Reset board</ControlButton>} meta={<OutcomeStats stats={outcomeStats} />}>
+      <OptionTabs active={difficulty} onChange={reset} options={chessDifficultyOptions} />
       <div className="chess-board">
         {game.board().flatMap((row, rowIndex) =>
           row.map((piece, colIndex) => {
@@ -1394,7 +1905,9 @@ function ChessGame() {
 
             return (
               <button
-                className={`chess-square ${light ? "light" : "dark"} ${isSelected ? "selected" : ""} ${isTarget ? "target" : ""}`}
+                className={`chess-square ${light ? "light" : "dark"} ${isSelected ? "selected" : ""} ${isTarget ? "target" : ""} ${
+                  piece ? `piece-${piece.color === "w" ? "white" : "black"}` : ""
+                }`}
                 key={square}
                 onClick={() => clickSquare(square)}
                 type="button"
@@ -1426,14 +1939,14 @@ export function PlayableGame({ slug }: { slug: GameSlug }) {
 
 export function GameInstructions({ game }: { game: Game }) {
   const instructions: Record<GameSlug, string> = {
-    sudoku: "Pick an empty cell, then use the number pad. Matching numbers highlight, and solved puzzles roll into a fresh one.",
+    sudoku: "Pick an empty cell, then use the number pad or keyboard. Matching numbers highlight, and solved puzzles roll into a fresh one.",
     minesweeper: "Choose a difficulty, click to reveal, right-click to flag. Your first click is protected.",
-    solitaire: "Draw from stock, move cards onto tableau piles, or double-click a card to send it to a foundation when it fits.",
+    solitaire: "Choose Easy or Hard draw, move cards onto tableau piles, or double-click a card to send it to a foundation when it fits.",
     "2048": "Use arrow keys or the buttons. Merge matching tiles to grow the score.",
-    chess: "Select one of the current side's pieces, then choose a legal destination.",
-    snake: "Use arrow keys or the buttons. Walls wrap around; eat 10 food before running into yourself.",
-    "word-search": "Click letters in order to find each word. Clear picks if the path is wrong.",
-    "memory-match": "Flip two cards at a time and match all pairs.",
+    chess: "Play white against the AI. Choose a difficulty, select a piece, then choose a legal destination.",
+    snake: "Use arrow keys or the buttons. Walls wrap around; keep eating until the board fills or you run into yourself.",
+    "word-search": "Click or drag through neighboring letters to find each word. A non-neighboring pick starts a fresh path.",
+    "memory-match": "Choose a difficulty, flip two cards at a time, and match all pairs.",
   };
 
   return <p>{instructions[game.slug]}</p>;
