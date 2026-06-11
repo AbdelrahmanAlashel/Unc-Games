@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { Chess, type Square } from "chess.js";
 import type { Game, GameSlug } from "./gameData";
 
@@ -44,7 +44,7 @@ function ControlButton({
   className?: string;
 }) {
   return (
-    <button className={`control-button ${className}`.trim()} disabled={disabled} onClick={onClick} type="button">
+    <button className={`control-button ${className}`.trim()} disabled={disabled} onClick={() => onClick()} type="button">
       {children}
     </button>
   );
@@ -311,17 +311,23 @@ function useOutcomeStats(game: GameSlug, difficulty: string, outcome: Outcome | 
 function TimerStats({
   stats,
   showDifficulty = true,
+  showHistory = true,
 }: {
   stats: ReturnType<typeof useGameTimerStats>;
   showDifficulty?: boolean;
+  showHistory?: boolean;
 }) {
   return (
     <>
       <span>Time {formatTime(stats.seconds)}</span>
-      {showDifficulty ? <span>{stats.difficulty}</span> : null}
-      <span>Best {formatTime(stats.best)}</span>
-      <span>Average {formatTime(stats.average)}</span>
-      <span>Games {stats.plays}</span>
+      {showDifficulty && showHistory ? <span>{stats.difficulty}</span> : null}
+      {showHistory ? (
+        <>
+          <span>Best {formatTime(stats.best)}</span>
+          <span>Average {formatTime(stats.average)}</span>
+          <span>Games {stats.plays}</span>
+        </>
+      ) : null}
     </>
   );
 }
@@ -849,7 +855,7 @@ function TwentyFortyEightGame() {
       actions={<ControlButton onClick={reset}>New game</ControlButton>}
       meta={
         <>
-          <TimerStats showDifficulty={false} stats={timerStats} />
+          <TimerStats showDifficulty={false} showHistory={false} stats={timerStats} />
           <ScoreStats stats={scoreStats} />
         </>
       }
@@ -1362,7 +1368,7 @@ function SnakeGame() {
       actions={<ControlButton onClick={reset}>Reset</ControlButton>}
       meta={
         <>
-          <TimerStats showDifficulty={false} stats={timerStats} />
+          <TimerStats showDifficulty={false} showHistory={false} stats={timerStats} />
           <ScoreStats stats={scoreStats} />
         </>
       }
@@ -1419,6 +1425,7 @@ type SolitaireSelection =
 
 const suits: Suit[] = ["spades", "hearts", "diamonds", "clubs"];
 const solitaireDifficultyOptions = ["Easy", "Hard"] as const;
+const solitaireDragType = "application/x-unc-solitaire-selection";
 const suitSymbols: Record<Suit, string> = { spades: "\u2660", hearts: "\u2665", diamonds: "\u2666", clubs: "\u2663" };
 const redSuits = new Set<Suit>(["hearts", "diamonds"]);
 
@@ -1595,9 +1602,45 @@ function SolitaireGame() {
     setState((current) => ({ ...current, selected: selection }));
   }
 
-  function moveToTableau(pile: number) {
+  function startCardDrag(event: DragEvent<HTMLElement>, selection: SolitaireSelection) {
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(solitaireDragType, JSON.stringify(selection));
+    select(selection);
+  }
+
+  function readDraggedSelection(event: DragEvent<HTMLElement>) {
+    const raw = event.dataTransfer.getData(solitaireDragType);
+
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      const selection = JSON.parse(raw) as SolitaireSelection;
+
+      if (
+        selection.source === "waste" ||
+        selection.source === "foundation" ||
+        (selection.source === "tableau" && Number.isInteger(selection.pile) && Number.isInteger(selection.index))
+      ) {
+        return selection;
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  function allowCardDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function moveToTableau(pile: number, incomingSelection?: SolitaireSelection) {
     setState((current) => {
-      const selection = current.selected;
+      const selection = incomingSelection ?? current.selected;
 
       if (!selection) {
         return current;
@@ -1622,9 +1665,9 @@ function SolitaireGame() {
     });
   }
 
-  function moveToFoundation(suit: Suit) {
+  function moveToFoundation(suit: Suit, incomingSelection?: SolitaireSelection) {
     setState((current) => {
-      const selection = current.selected;
+      const selection = incomingSelection ?? current.selected;
 
       if (!selection) {
         return current;
@@ -1661,6 +1704,9 @@ function SolitaireGame() {
     });
   }
 
+  const visibleWaste = state.waste.slice(-3);
+  const topWasteCard = state.waste.at(-1);
+
   return (
     <GamePanel
       className="solitaire-panel"
@@ -1675,24 +1721,52 @@ function SolitaireGame() {
           <button className="playing-card card-back" onClick={draw} type="button">
             {state.stock.length ? state.stock.length : "Deal"}
           </button>
-          <button
-            className={`playing-card ${redSuits.has(state.waste.at(-1)?.suit ?? "spades") ? "red" : ""} ${
-              state.selected?.source === "waste" ? "selected" : ""
-            }`}
-            onClick={() => (state.waste.at(-1) ? select({ source: "waste" }) : select(null))}
-            onDoubleClick={() => (state.waste.at(-1) ? moveSelectionToAnyFoundation({ source: "waste" }) : undefined)}
-            type="button"
-          >
-            {state.waste.at(-1) ? <CardFace card={state.waste.at(-1)!} /> : ""}
-          </button>
+          <div className="waste-stack" aria-label="Waste pile">
+            {visibleWaste.length ? (
+              visibleWaste.map((card, index) => {
+                const isTop = card.id === topWasteCard?.id;
+
+                return (
+                  <button
+                    className={`playing-card waste-card ${redSuits.has(card.suit) ? "red" : ""} ${
+                      state.selected?.source === "waste" && isTop ? "selected" : ""
+                    } ${isTop ? "" : "covered"}`}
+                    disabled={!isTop}
+                    draggable={isTop}
+                    key={card.id}
+                    onClick={() => (isTop ? select({ source: "waste" }) : undefined)}
+                    onDoubleClick={() => (isTop ? moveSelectionToAnyFoundation({ source: "waste" }) : undefined)}
+                    onDragStart={(event) => startCardDrag(event, { source: "waste" })}
+                    style={{ "--waste-index": index } as CSSProperties}
+                    type="button"
+                  >
+                    <CardFace card={card} />
+                  </button>
+                );
+              })
+            ) : (
+              <button className="playing-card empty-waste" onClick={() => select(null)} type="button" aria-label="Waste pile empty" />
+            )}
+          </div>
           <div className="foundation-row">
             {suits.map((suit) => (
               <button
                 className={`playing-card foundation ${redSuits.has(suit) ? "red" : ""} ${
                   state.selected?.source === "foundation" && state.selected.suit === suit ? "selected" : ""
                 }`}
+                draggable={Boolean(state.foundations[suit].at(-1))}
                 key={suit}
                 onClick={() => (state.selected ? moveToFoundation(suit) : state.foundations[suit].at(-1) ? select({ source: "foundation", suit }) : select(null))}
+                onDragOver={allowCardDrop}
+                onDragStart={(event) => startCardDrag(event, { source: "foundation", suit })}
+                onDrop={(event) => {
+                  const selection = readDraggedSelection(event);
+
+                  if (selection) {
+                    event.preventDefault();
+                    moveToFoundation(suit, selection);
+                  }
+                }}
                 type="button"
               >
                 {state.foundations[suit].at(-1) ? <CardFace card={state.foundations[suit].at(-1)!} /> : suitSymbols[suit]}
@@ -1702,7 +1776,20 @@ function SolitaireGame() {
         </div>
         <div className="tableau">
           {state.tableau.map((pile, pileIndex) => (
-            <div className="tableau-pile" key={pileIndex} onClick={() => moveToTableau(pileIndex)}>
+            <div
+              className="tableau-pile"
+              key={pileIndex}
+              onClick={() => moveToTableau(pileIndex)}
+              onDragOver={allowCardDrop}
+              onDrop={(event) => {
+                const selection = readDraggedSelection(event);
+
+                if (selection) {
+                  event.preventDefault();
+                  moveToTableau(pileIndex, selection);
+                }
+              }}
+            >
               {pile.length === 0 ? <span className="empty-pile">K</span> : null}
               {pile.map((card, cardIndex) => (
                 <button
@@ -1710,6 +1797,7 @@ function SolitaireGame() {
                     state.selected?.source === "tableau" && state.selected.pile === pileIndex && cardIndex >= state.selected.index ? "selected" : ""
                   }`}
                   disabled={!card.faceUp}
+                  draggable={card.faceUp}
                   key={card.id}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -1723,6 +1811,7 @@ function SolitaireGame() {
                     event.stopPropagation();
                     moveSelectionToAnyFoundation({ source: "tableau", pile: pileIndex, index: cardIndex });
                   }}
+                  onDragStart={(event) => startCardDrag(event, { source: "tableau", pile: pileIndex, index: cardIndex })}
                   style={{ top: `${cardIndex * 32}px` }}
                   type="button"
                 >
@@ -1874,6 +1963,11 @@ function ChessGame() {
 
     const piece = game.get(square);
 
+    if (piece && piece.color === "w") {
+      setSelected(selected === square ? null : square);
+      return;
+    }
+
     if (selected) {
       const next = new Chess(game.fen());
       const move = next.move({ from: selected, to: square, promotion: "q" });
@@ -1885,11 +1979,7 @@ function ChessGame() {
       }
     }
 
-    if (piece && piece.color === "w") {
-      setSelected(square);
-    } else {
-      setSelected(null);
-    }
+    setSelected(null);
   }
 
   return (

@@ -60,8 +60,18 @@ export default function App() {
     <main className={`app-shell ${selectedGame ? "game-mode" : ""}`}>
       <header className="top-bar">
         <button className="brand" onClick={returnToShelf} type="button" aria-label="Unc Games home">
-          <span className="brand-mark">UG</span>
-          <span>Unc Games</span>
+          <span className="brand-mark" aria-hidden="true">
+            <span className="uncle-logo">
+              <span className="uncle-hair" />
+              <span className="uncle-face">
+                <span className="uncle-brow uncle-brow-left" />
+                <span className="uncle-brow uncle-brow-right" />
+                <span className="uncle-glasses" />
+                <span className="uncle-mustache" />
+              </span>
+            </span>
+          </span>
+          <span className="brand-text">Unc Games</span>
         </button>
         <span className="version-pill">v1.1 arcade</span>
       </header>
