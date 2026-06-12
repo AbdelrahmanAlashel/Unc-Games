@@ -864,7 +864,10 @@ function TwentyFortyEightGame() {
         <div className="twenty-board">
           {board.flatMap((row, rowIndex) =>
             row.map((value, colIndex) => (
-              <div className={`twenty-cell value-${value} ${value ? "tile-pop" : ""}`} key={`${rowIndex}-${colIndex}-${moveTick}`}>
+              <div
+                className={`twenty-cell value-${value} ${value >= 1000 ? "large-number" : ""} ${value ? "tile-pop" : ""}`}
+                key={`${rowIndex}-${colIndex}-${moveTick}`}
+              >
                 {value || ""}
               </div>
             )),
@@ -892,9 +895,9 @@ type MemoryCard = {
 type MemoryDifficulty = "Easy" | "Hard";
 
 const memoryDifficultyOptions = ["Easy", "Hard"] as const;
-const memoryConfigs: Record<MemoryDifficulty, { columns: number; pairs: number }> = {
-  Easy: { columns: 4, pairs: 8 },
-  Hard: { columns: 6, pairs: 12 },
+const memoryConfigs: Record<MemoryDifficulty, { columns: number; pairs: number; rows: number }> = {
+  Easy: { columns: 4, pairs: 8, rows: 4 },
+  Hard: { columns: 6, pairs: 12, rows: 4 },
 };
 
 function createMemoryDeck(pairCount: number): MemoryCard[] {
@@ -911,6 +914,7 @@ function MemoryMatchGame() {
   const config = memoryConfigs[difficulty];
   const [cards, setCards] = useState(() => createMemoryDeck(memoryConfigs.Easy.pairs));
   const [flipped, setFlipped] = useState<number[]>([]);
+  const [previewing, setPreviewing] = useState(true);
   const [moves, setMoves] = useState(0);
   const [round, setRound] = useState(0);
   const won = cards.every((card) => card.matched);
@@ -921,17 +925,27 @@ function MemoryMatchGame() {
     setDifficulty(nextDifficulty);
     setCards(createMemoryDeck(nextConfig.pairs));
     setFlipped([]);
+    setPreviewing(true);
     setMoves(0);
     setRound((current) => current + 1);
   }
 
   function flip(index: number) {
-    if (cards[index].matched || flipped.includes(index) || flipped.length === 2) {
+    if (previewing || cards[index].matched || flipped.includes(index) || flipped.length === 2) {
       return;
     }
 
     setFlipped((current) => [...current, index]);
   }
+
+  useEffect(() => {
+    if (!previewing) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setPreviewing(false), difficulty === "Hard" ? 3500 : 2800);
+    return () => window.clearTimeout(timer);
+  }, [difficulty, previewing, round]);
 
   useEffect(() => {
     if (flipped.length !== 2) {
@@ -954,14 +968,14 @@ function MemoryMatchGame() {
   return (
     <GamePanel
       title="Memory Match"
-      status={won ? `Cleared in ${moves} moves` : `${moves} moves`}
+      status={previewing ? "Memorize the cards" : won ? `Cleared in ${moves} moves` : `${moves} moves`}
       actions={<ControlButton onClick={reset}>Shuffle</ControlButton>}
       meta={<TimerStats stats={timerStats} />}
     >
       <OptionTabs active={difficulty} onChange={reset} options={memoryDifficultyOptions} />
-      <div className="memory-board" style={{ "--memory-columns": config.columns } as CSSProperties}>
+      <div className="memory-board" style={{ "--memory-columns": config.columns, "--memory-rows": config.rows } as CSSProperties}>
         {cards.map((card, index) => {
-          const open = card.matched || flipped.includes(index);
+          const open = previewing || card.matched || flipped.includes(index);
 
           return (
             <button className={`memory-card ${open ? "open" : ""}`} key={card.id} onClick={() => flip(index)} type="button">

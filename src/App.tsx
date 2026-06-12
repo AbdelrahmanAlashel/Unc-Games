@@ -72,9 +72,13 @@ export default function App() {
               <text className="logo-cap-text" x="48" y="30" textAnchor="middle">
                 UG
               </text>
-              <path className="logo-brow" d="M31 43c5-4 11-4 16-1" />
-              <path className="logo-brow" d="M50 42c5-3 11-3 16 1" />
-              <path className="logo-glasses" d="M27 48h10m22 0h10M37 48c0-5 5-8 10-6 3 1 5 3 5 6s-2 6-5 7c-5 2-10-1-10-7zm15 0c0-5 5-8 10-6 3 1 5 3 5 6s-2 6-5 7c-5 2-10-1-10-7z" />
+              <path className="logo-brow" d="M30 42c5-5 13-5 18-1" />
+              <path className="logo-brow" d="M50 41c5-4 13-4 18 1" />
+              <circle className="logo-eye" cx="39" cy="50" r="3" />
+              <circle className="logo-eye" cx="59" cy="50" r="3" />
+              <circle className="logo-lens" cx="39" cy="50" r="10.5" />
+              <circle className="logo-lens" cx="59" cy="50" r="10.5" />
+              <path className="logo-glasses" d="M18 49h10m21 0c3-2 6-2 9 0m21 0h-10" />
               <path className="logo-nose" d="M49 51c-2 5-1 8 3 9" />
               <path className="logo-mustache" d="M35 62c6-6 13-4 14 2 2-6 10-8 16-2-3 8-12 9-16 3-4 6-13 5-14-3z" />
               <path className="logo-controller" d="M27 75c4-6 11-8 21-5 10-3 17-1 21 5 2 4-1 9-6 8l-8-3H41l-8 3c-5 1-8-4-6-8z" />
@@ -98,20 +102,17 @@ export default function App() {
               <h1>Pick a table. Start with the classics.</h1>
             </div>
 
-            <dl className="lobby-stats" aria-label="Project stats">
-              <div>
-                <dt>{games.length}</dt>
-                <dd>Playable games</dd>
-              </div>
-              <div>
-                <dt>8</dt>
-                <dd>Tables open today</dd>
-              </div>
-              <div>
-                <dt>1</dt>
-                <dd>Shared website home</dd>
-              </div>
-            </dl>
+            <div className="lobby-description">
+              <p>
+                Unc Games is a cozy shelf of classic brain-break games: Sudoku, Minesweeper, Solitaire, 2048,
+                Snake, Chess, Word Search, and Memory Match all in one place.
+              </p>
+              <p>
+                "Unc games" are the kind of calm, timeless games an uncle might play with coffee nearby, but the door
+                is open for everyone. You do not have to be a dad, an uncle, or a serious strategist. Just pick a table
+                and chill your mind for a few minutes.
+              </p>
+            </div>
           </section>
 
           <section className="library" aria-label="Game library">

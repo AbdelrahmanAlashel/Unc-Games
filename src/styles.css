@@ -170,6 +170,7 @@ button {
 
 .logo-brow,
 .logo-glasses,
+.logo-lens,
 .logo-nose,
 .logo-dpad {
   fill: none;
@@ -184,8 +185,17 @@ button {
   stroke-width: 4;
 }
 
+.logo-eye {
+  fill: var(--ink);
+}
+
+.logo-lens {
+  fill: rgba(244, 247, 239, 0.2);
+  stroke-width: 3.3;
+}
+
 .logo-glasses {
-  stroke-width: 2.8;
+  stroke-width: 3.5;
 }
 
 .logo-mustache {
@@ -255,36 +265,28 @@ h1 {
   letter-spacing: 0;
 }
 
-.lobby-stats {
+.lobby-description {
   display: grid;
-  gap: 12px;
-}
-
-.lobby-stats div {
-  display: grid;
-  grid-template-columns: 82px 1fr;
-  align-items: center;
-  min-height: 74px;
-  padding: 12px 16px;
+  gap: 14px;
+  padding: clamp(22px, 4vw, 34px);
   border: 2px solid var(--ink);
-  border-radius: 8px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.58);
-  box-shadow: 6px 6px 0 rgba(23, 24, 23, 0.9);
+  box-shadow: 8px 8px 0 rgba(23, 24, 23, 0.9);
 }
 
-.lobby-stats dt {
-  color: var(--tomato);
-  font-family: Rockwell, Georgia, serif;
-  font-size: 2.4rem;
-  line-height: 1;
-}
-
-.lobby-stats dd {
-  margin: 0;
+.lobby-description p {
   color: var(--muted);
-  font-size: 0.96rem;
+  font-size: clamp(1rem, 1.6vw, 1.2rem);
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.45;
+}
+
+.lobby-description p:first-child {
+  color: var(--ink);
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
+  line-height: 1.15;
 }
 
 .library {
@@ -887,6 +889,11 @@ h3 {
   overflow: hidden;
 }
 
+.twenty-cell.large-number {
+  font-size: clamp(1rem, 3.5vw, 2.45rem);
+  letter-spacing: -0.06em;
+}
+
 .twenty-cell.tile-pop {
   animation: tile-pop 180ms ease-out;
 }
@@ -967,7 +974,10 @@ h3 {
 }
 
 .memory-board {
+  width: min(100%, calc(var(--memory-columns, 4) * 104px));
+  aspect-ratio: var(--memory-columns, 4) / var(--memory-rows, 4);
   grid-template-columns: repeat(var(--memory-columns, 4), 1fr);
+  grid-template-rows: repeat(var(--memory-rows, 4), 1fr);
   gap: 10px;
   padding: 12px;
   border: 3px solid var(--ink);
@@ -1671,10 +1681,6 @@ h3 {
     align-items: start;
   }
 
-  .lobby-stats {
-    grid-template-columns: 1fr;
-  }
-
   .library-header {
     align-items: start;
     flex-direction: column;
@@ -1701,15 +1707,6 @@ h3 {
 
   h1 {
     font-size: clamp(3rem, 17vw, 4.7rem);
-  }
-
-  .lobby-stats div {
-    grid-template-columns: 66px 1fr;
-    min-height: 64px;
-  }
-
-  .lobby-stats dt {
-    font-size: 2rem;
   }
 
   .game-grid {
