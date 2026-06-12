@@ -107,9 +107,7 @@ button {
   width: 44px;
   aspect-ratio: 1;
   place-items: center;
-  border: 2px solid var(--ink);
-  border-radius: 8px;
-  background: var(--sun);
+  border-radius: 16px;
   box-shadow: 5px 5px 0 var(--ink);
   overflow: hidden;
   position: relative;
@@ -117,119 +115,101 @@ button {
 
 .app-shell:not(.game-mode) .brand-mark {
   width: clamp(62px, 7vw, 82px);
-  border-width: 3px;
-  border-radius: 18px;
+  border-radius: 24px;
   box-shadow: 8px 8px 0 var(--ink);
 }
 
-.uncle-logo {
-  position: relative;
+.uncle-logo-svg {
   display: block;
-  width: 82%;
-  aspect-ratio: 1;
+  width: 100%;
+  height: 100%;
 }
 
-.uncle-hair {
-  position: absolute;
-  top: 3%;
-  left: 18%;
-  width: 64%;
-  height: 30%;
-  border: 2px solid var(--ink);
-  border-radius: 48% 48% 28% 28%;
-  background:
-    radial-gradient(circle at 20% 55%, #fff8df 0 18%, transparent 20%),
-    radial-gradient(circle at 48% 28%, #fff8df 0 24%, transparent 26%),
-    radial-gradient(circle at 78% 55%, #fff8df 0 18%, transparent 20%),
-    #d8ded7;
+.uncle-logo-svg * {
+  vector-effect: non-scaling-stroke;
 }
 
-.uncle-face {
-  position: absolute;
-  inset: 20% 12% 7%;
-  border: 2px solid var(--ink);
-  border-radius: 42% 42% 46% 46%;
-  background: #f0bd8f;
-  box-shadow: inset 0 -7px 0 rgba(207, 79, 63, 0.16);
+.logo-badge {
+  fill: var(--sun);
+  stroke: var(--ink);
+  stroke-width: 4;
 }
 
-.uncle-face::before,
-.uncle-face::after {
-  content: "";
-  position: absolute;
-  top: 41%;
-  width: 10%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--ink);
+.logo-corner {
+  fill: rgba(29, 102, 85, 0.22);
 }
 
-.uncle-face::before {
-  left: 29%;
+.logo-hair {
+  fill: #edf0e8;
+  stroke: var(--ink);
+  stroke-linejoin: round;
+  stroke-width: 3.4;
 }
 
-.uncle-face::after {
-  right: 29%;
+.logo-face,
+.logo-ear {
+  fill: #efb98b;
+  stroke: var(--ink);
+  stroke-width: 3.2;
 }
 
-.uncle-brow {
-  position: absolute;
-  top: 31%;
-  width: 22%;
-  height: 8%;
-  border-radius: 999px;
-  background: #fff8df;
+.logo-cap {
+  fill: var(--felt);
+  stroke: var(--ink);
+  stroke-linejoin: round;
+  stroke-width: 3.2;
 }
 
-.uncle-brow-left {
-  left: 20%;
-  transform: rotate(-9deg);
+.logo-cap-text {
+  fill: var(--sun);
+  font-family: Rockwell, Georgia, serif;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: -1px;
 }
 
-.uncle-brow-right {
-  right: 20%;
-  transform: rotate(9deg);
+.logo-brow,
+.logo-glasses,
+.logo-nose,
+.logo-dpad {
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.2;
 }
 
-.uncle-glasses {
-  position: absolute;
-  top: 36%;
-  left: 19%;
-  width: 62%;
-  height: 20%;
-  border-top: 3px solid var(--ink);
+.logo-brow {
+  stroke: #f8f3de;
+  stroke-width: 4;
 }
 
-.uncle-glasses::before,
-.uncle-glasses::after {
-  content: "";
-  position: absolute;
-  top: -7px;
-  width: 32%;
-  aspect-ratio: 1.25;
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-  background: rgba(244, 247, 239, 0.38);
+.logo-glasses {
+  stroke-width: 2.8;
 }
 
-.uncle-glasses::before {
-  left: 0;
+.logo-mustache {
+  fill: var(--ink);
 }
 
-.uncle-glasses::after {
-  right: 0;
+.logo-controller {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-linejoin: round;
+  stroke-width: 3.2;
 }
 
-.uncle-mustache {
-  position: absolute;
-  left: 25%;
-  bottom: 24%;
-  width: 50%;
-  height: 13%;
-  border-radius: 999px 999px 50% 50%;
-  background:
-    radial-gradient(ellipse at 30% 50%, var(--ink) 0 46%, transparent 48%),
-    radial-gradient(ellipse at 70% 50%, var(--ink) 0 46%, transparent 48%);
+.logo-button-red {
+  fill: var(--tomato);
+}
+
+.logo-button-blue {
+  fill: var(--sky);
+}
+
+.logo-button {
+  stroke: var(--ink);
+  stroke-width: 1.6;
 }
 
 .version-pill {

@@ -61,15 +61,27 @@ export default function App() {
       <header className="top-bar">
         <button className="brand" onClick={returnToShelf} type="button" aria-label="Unc Games home">
           <span className="brand-mark" aria-hidden="true">
-            <span className="uncle-logo">
-              <span className="uncle-hair" />
-              <span className="uncle-face">
-                <span className="uncle-brow uncle-brow-left" />
-                <span className="uncle-brow uncle-brow-right" />
-                <span className="uncle-glasses" />
-                <span className="uncle-mustache" />
-              </span>
-            </span>
+            <svg className="uncle-logo-svg" viewBox="0 0 96 96" role="img" aria-label="">
+              <rect className="logo-badge" x="5" y="5" width="86" height="86" rx="20" />
+              <path className="logo-corner" d="M15 81L81 15v66z" />
+              <path className="logo-hair" d="M24 36c1-14 12-23 25-23 14 0 25 9 26 23-6-5-12-5-17-1-5-7-14-7-19 0-5-4-10-4-15 1z" />
+              <circle className="logo-ear logo-ear-left" cx="23" cy="50" r="7" />
+              <circle className="logo-ear logo-ear-right" cx="73" cy="50" r="7" />
+              <path className="logo-face" d="M24 43c0-17 49-17 49 0v9c0 17-10 27-24 27S24 69 24 52z" />
+              <path className="logo-cap" d="M31 20c8-8 29-8 37 0l-4 12H35z" />
+              <text className="logo-cap-text" x="48" y="30" textAnchor="middle">
+                UG
+              </text>
+              <path className="logo-brow" d="M31 43c5-4 11-4 16-1" />
+              <path className="logo-brow" d="M50 42c5-3 11-3 16 1" />
+              <path className="logo-glasses" d="M27 48h10m22 0h10M37 48c0-5 5-8 10-6 3 1 5 3 5 6s-2 6-5 7c-5 2-10-1-10-7zm15 0c0-5 5-8 10-6 3 1 5 3 5 6s-2 6-5 7c-5 2-10-1-10-7z" />
+              <path className="logo-nose" d="M49 51c-2 5-1 8 3 9" />
+              <path className="logo-mustache" d="M35 62c6-6 13-4 14 2 2-6 10-8 16-2-3 8-12 9-16 3-4 6-13 5-14-3z" />
+              <path className="logo-controller" d="M27 75c4-6 11-8 21-5 10-3 17-1 21 5 2 4-1 9-6 8l-8-3H41l-8 3c-5 1-8-4-6-8z" />
+              <path className="logo-dpad" d="M37 73v7m-4-3h8" />
+              <circle className="logo-button logo-button-red" cx="57" cy="76" r="2.8" />
+              <circle className="logo-button logo-button-blue" cx="64" cy="74" r="2.8" />
+            </svg>
           </span>
           <span className="brand-text">Unc Games</span>
         </button>
