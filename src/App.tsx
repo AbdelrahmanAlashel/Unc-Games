@@ -79,7 +79,6 @@ export default function App() {
               <path className="logo-glasses" d="M18 49h10m20 0c3-2 8-2 11 0m19 0h-8" />
               <circle className="logo-eye" cx="38" cy="50" r="3" />
               <circle className="logo-eye" cx="60" cy="50" r="3" />
-              <path className="logo-nose" d="M49 51c-2 5-1 8 3 9" />
               <path className="logo-mustache" d="M35 62c6-6 13-4 14 2 2-6 10-8 16-2-3 8-12 9-16 3-4 6-13 5-14-3z" />
               <path className="logo-controller" d="M27 75c4-6 11-8 21-5 10-3 17-1 21 5 2 4-1 9-6 8l-8-3H41l-8 3c-5 1-8-4-6-8z" />
               <path className="logo-dpad" d="M37 73v7m-4-3h8" />
