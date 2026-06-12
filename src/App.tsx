@@ -104,10 +104,6 @@ export default function App() {
 
             <div className="lobby-description">
               <p>
-                Unc Games is a cozy shelf of classic brain-break games: Sudoku, Minesweeper, Solitaire, 2048,
-                Snake, Chess, Word Search, and Memory Match all in one place.
-              </p>
-              <p>
                 "Unc games" are the kind of calm, timeless games an uncle might play with coffee nearby, but the door
                 is open for everyone. You do not have to be a dad, an uncle, or a serious strategist. Just pick a table
                 and chill your mind for a few minutes.
