@@ -72,13 +72,13 @@ export default function App() {
               <text className="logo-cap-text" x="48" y="30" textAnchor="middle">
                 UG
               </text>
-              <path className="logo-brow" d="M30 42c5-5 13-5 18-1" />
-              <path className="logo-brow" d="M50 41c5-4 13-4 18 1" />
-              <circle className="logo-eye" cx="39" cy="50" r="3" />
-              <circle className="logo-eye" cx="59" cy="50" r="3" />
-              <circle className="logo-lens" cx="39" cy="50" r="10.5" />
-              <circle className="logo-lens" cx="59" cy="50" r="10.5" />
-              <path className="logo-glasses" d="M18 49h10m21 0c3-2 6-2 9 0m21 0h-10" />
+              <path className="logo-brow" d="M29 42c5-5 13-5 18-1" />
+              <path className="logo-brow" d="M51 41c5-4 13-4 18 1" />
+              <circle className="logo-lens" cx="38" cy="50" r="10.2" />
+              <circle className="logo-lens" cx="60" cy="50" r="10.2" />
+              <path className="logo-glasses" d="M18 49h10m20 0c3-2 8-2 11 0m19 0h-8" />
+              <circle className="logo-eye" cx="38" cy="50" r="3" />
+              <circle className="logo-eye" cx="60" cy="50" r="3" />
               <path className="logo-nose" d="M49 51c-2 5-1 8 3 9" />
               <path className="logo-mustache" d="M35 62c6-6 13-4 14 2 2-6 10-8 16-2-3 8-12 9-16 3-4 6-13 5-14-3z" />
               <path className="logo-controller" d="M27 75c4-6 11-8 21-5 10-3 17-1 21 5 2 4-1 9-6 8l-8-3H41l-8 3c-5 1-8-4-6-8z" />
