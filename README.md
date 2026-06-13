@@ -24,9 +24,6 @@ Unc Games is a browser-based collection of calm, classic games made for quick br
 - chess.js
 - GitHub Pages
 
-## What Is npm?
-
-`npm` is the Node Package Manager. This project uses it to install libraries and run development commands.
 
 ## Development
 
