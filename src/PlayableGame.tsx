@@ -1229,6 +1229,7 @@ function SnakeGame() {
   const timerStats = useGameTimerStats("snake", standardDifficulty, won, round);
   const scoreStats = useScoreStats("snake", standardDifficulty, gameOver || won, score, round);
   const directionRef = useRef(direction);
+  const nextDirectionRef = useRef(direction);
   const growthRef = useRef(0);
   const bigFoodRef = useRef(bigFood);
   const snakeDelay = Math.max(55, 150 - Math.floor(snake.length / 7) * 6);
@@ -1239,6 +1240,7 @@ function SnakeGame() {
 
   function reset() {
     directionRef.current = "right";
+    nextDirectionRef.current = "right";
     growthRef.current = 0;
     setSnake(initialSnake);
     setFood(randomFood(initialSnake));
@@ -1262,7 +1264,7 @@ function SnakeGame() {
       return;
     }
 
-    directionRef.current = next;
+    nextDirectionRef.current = next;
     setDirection(next);
     setRunning(true);
   }
@@ -1304,6 +1306,7 @@ function SnakeGame() {
     const timer = window.setInterval(() => {
       setSnake((current) => {
         const head = current[0];
+        directionRef.current = nextDirectionRef.current;
         const vector: Record<Direction, Point> = {
           up: { x: 0, y: -1 },
           right: { x: 1, y: 0 },
@@ -1388,7 +1391,7 @@ function SnakeGame() {
       }
     >
       <div className="snake-layout">
-        <div className="snake-board">
+        <div className={`snake-board ${gameOver || won ? "finished" : ""}`}>
           {Array.from({ length: snakeSize * snakeSize }, (_, index) => {
             const point = { x: index % snakeSize, y: Math.floor(index / snakeSize) };
             const isSnake = snake.some((segment) => samePoint(segment, point));
@@ -1405,13 +1408,19 @@ function SnakeGame() {
               />
             );
           })}
+          {gameOver || won ? (
+            <div className="snake-result" aria-live="polite">
+              <strong>{won ? "Board Filled!" : "Game Over"}</strong>
+              <span>Score {score}</span>
+            </div>
+          ) : null}
         </div>
         <div className="d-pad">
           <span />
           <ControlButton onClick={() => changeDirection("up")}>Up</ControlButton>
           <span />
           <ControlButton onClick={() => changeDirection("left")}>Left</ControlButton>
-          <ControlButton onClick={() => setRunning((current) => !current)}>{running ? "Pause" : "Start"}</ControlButton>
+          <span />
           <ControlButton onClick={() => changeDirection("right")}>Right</ControlButton>
           <span />
           <ControlButton onClick={() => changeDirection("down")}>Down</ControlButton>

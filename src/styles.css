@@ -1052,6 +1052,7 @@ h3 {
 }
 
 .snake-board {
+  position: relative;
   display: grid;
   width: min(100%, 520px);
   aspect-ratio: 1;
@@ -1064,6 +1065,10 @@ h3 {
     linear-gradient(90deg, rgba(244, 247, 239, 0.08) 1px, transparent 1px),
     linear-gradient(rgba(244, 247, 239, 0.08) 1px, transparent 1px),
     var(--felt-dark);
+}
+
+.snake-board.finished > span {
+  opacity: 0.42;
 }
 
 .snake-board span {
@@ -1095,6 +1100,38 @@ h3 {
     var(--tomato);
   box-shadow: 0 0 0 3px rgba(231, 183, 70, 0.45);
   animation: big-food-pulse 680ms ease-in-out infinite alternate;
+}
+
+.snake-result {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  min-width: min(76%, 320px);
+  gap: 8px;
+  place-items: center;
+  padding: 22px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: rgba(244, 247, 239, 0.94);
+  box-shadow: 8px 8px 0 rgba(23, 24, 23, 0.9);
+  color: var(--ink);
+  text-align: center;
+  transform: translate(-50%, -50%) rotate(-1deg);
+  z-index: 4;
+}
+
+.snake-result strong {
+  font-family: Rockwell, Georgia, serif;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  line-height: 0.9;
+}
+
+.snake-result span {
+  display: inline;
+  aspect-ratio: auto;
+  color: var(--tomato);
+  font-size: clamp(1rem, 2vw, 1.35rem);
+  font-weight: 900;
 }
 
 @keyframes big-food-pulse {
