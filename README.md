@@ -10,7 +10,7 @@ Unc Games is a browser-based collection of calm, classic games made for quick br
 - Minesweeper with three difficulties and colorful revealed cells.
 - Solitaire with Easy and Hard draw modes, drag-and-drop, auto-finish, and win animation.
 - 2048 with score tracking and merge animation.
-- Chess against AI with Beginner, Intermediate, and Expert difficulty.
+- Chess against AI with Beginner, Intermediate, and Stockfish-powered Expert difficulty.
 - Snake with wraparound walls, growing speed, score tracking, and bonus food.
 - Word Search with difficulties and click-or-drag selection.
 - Memory Match with preview flash and Easy/Hard modes.
@@ -22,6 +22,7 @@ Unc Games is a browser-based collection of calm, classic games made for quick br
 - Vite
 - CSS
 - chess.js
+- Stockfish 18 Lite (Expert chess engine)
 - GitHub Pages
 
 
@@ -54,3 +55,7 @@ npm run preview
 ## Deployment
 
 The site is deployed with GitHub Pages. When changes are pushed to `main`, GitHub Actions builds the Vite app and publishes the latest version.
+
+## Third-Party Notices
+
+Expert Chess uses the bundled Stockfish 18 Lite engine, licensed under GPL-3.0. Its license is included at `public/stockfish/COPYING.txt`.

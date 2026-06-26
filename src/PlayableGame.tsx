@@ -1878,9 +1878,13 @@ const pieceSymbols: Record<string, string> = {
 };
 
 type ChessDifficulty = "Beginner" | "Intermediate" | "Expert";
+type StockfishSearch = {
+  fen: string;
+};
 
 const chessDifficultyOptions = ["Beginner", "Intermediate", "Expert"] as const;
 const pieceValues: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+const stockfishWorkerUrl = new URL("stockfish/stockfish-18-lite-single.js", document.baseURI).toString();
 
 function scoreChessBoard(game: Chess) {
   return game
@@ -1931,6 +1935,10 @@ function ChessGame() {
   const [fen, setFen] = useState(new Chess().fen());
   const [selected, setSelected] = useState<Square | null>(null);
   const [round, setRound] = useState(0);
+  const [expertEngineReady, setExpertEngineReady] = useState(false);
+  const [expertEngineUnavailable, setExpertEngineUnavailable] = useState(false);
+  const expertEngineRef = useRef<Worker | null>(null);
+  const expertSearchRef = useRef<StockfishSearch | null>(null);
   const game = useMemo(() => new Chess(fen), [fen]);
   const complete = game.isCheckmate() || game.isDraw();
   const outcome: Outcome | null = game.isCheckmate() ? (game.turn() === "b" ? "wins" : "losses") : game.isDraw() ? "draws" : null;
@@ -1942,15 +1950,84 @@ function ChessGame() {
       : "Checkmate, AI wins"
     : game.isDraw()
       ? "Draw"
+      : difficulty === "Expert" && game.turn() === "b" && !expertEngineReady
+        ? expertEngineUnavailable
+          ? "Expert engine unavailable"
+          : "Expert engine loading"
       : game.inCheck()
         ? game.turn() === "w"
           ? "Your move, check"
           : "AI thinking, check"
         : game.turn() === "w"
-          ? "Your move"
+        ? "Your move"
           : "AI thinking";
 
+  useEffect(() => {
+    const worker = new Worker(stockfishWorkerUrl);
+    expertEngineRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent<string>) => {
+      const message = String(event.data).trim();
+
+      if (message === "uciok") {
+        worker.postMessage("setoption name Hash value 64");
+        worker.postMessage("setoption name UCI_LimitStrength value false");
+        worker.postMessage("setoption name Skill Level value 20");
+        worker.postMessage("isready");
+        return;
+      }
+
+      if (message === "readyok") {
+        setExpertEngineReady(true);
+        return;
+      }
+
+      const bestMove = message.match(/^bestmove ([a-h][1-8][a-h][1-8][qrbn]?)/);
+      const search = expertSearchRef.current;
+
+      if (!bestMove || !search) {
+        return;
+      }
+
+      expertSearchRef.current = null;
+      const uciMove = bestMove[1];
+      const promotion = uciMove[4] as "q" | "r" | "b" | "n" | undefined;
+
+      setFen((currentFen) => {
+        if (currentFen !== search.fen) {
+          return currentFen;
+        }
+
+        const next = new Chess(currentFen);
+        const move = next.move({
+          from: uciMove.slice(0, 2) as Square,
+          to: uciMove.slice(2, 4) as Square,
+          promotion,
+        });
+
+        return move ? next.fen() : currentFen;
+      });
+      setSelected(null);
+    };
+
+    worker.onerror = () => {
+      expertSearchRef.current = null;
+      setExpertEngineUnavailable(true);
+    };
+
+    worker.postMessage("uci");
+
+    return () => {
+      worker.postMessage("quit");
+      worker.terminate();
+      expertEngineRef.current = null;
+    };
+  }, []);
+
   function reset(nextDifficulty = difficulty) {
+    expertSearchRef.current = null;
+    expertEngineRef.current?.postMessage("stop");
+    expertEngineRef.current?.postMessage("ucinewgame");
     setDifficulty(nextDifficulty);
     setFen(new Chess().fen());
     setSelected(null);
@@ -1959,6 +2036,24 @@ function ChessGame() {
 
   useEffect(() => {
     if (complete || game.turn() !== "b") {
+      return;
+    }
+
+    if (difficulty === "Expert" && expertEngineReady) {
+      const engine = expertEngineRef.current;
+
+      if (!engine) {
+        return;
+      }
+
+      expertSearchRef.current = { fen };
+      engine.postMessage(`position fen ${fen}`);
+      // The engine runs in a worker, so this higher-strength search never freezes the board.
+      engine.postMessage("go movetime 5000");
+      return;
+    }
+
+    if (difficulty === "Expert" && !expertEngineUnavailable) {
       return;
     }
 
@@ -1973,11 +2068,11 @@ function ChessGame() {
           setSelected(null);
         }
       },
-      difficulty === "Expert" ? 420 : 260,
+      260,
     );
 
     return () => window.clearTimeout(timer);
-  }, [complete, difficulty, fen, game]);
+  }, [complete, difficulty, expertEngineReady, expertEngineUnavailable, fen, game]);
 
   function clickSquare(square: Square) {
     if (complete || game.turn() !== "w") {
